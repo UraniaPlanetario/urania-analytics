@@ -7,6 +7,9 @@ node_modules/
 dist/
 build/
 
+# Claude
+settings.local.json
+
 # Environment
 .env
 .env.local
