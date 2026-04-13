@@ -1,6 +1,6 @@
 import { useAuth } from '@/hooks/useAuth';
-import Dashboard from './Dashboard';
 import Login from './Login';
+import AppShell from './AppShell';
 import { Loader2 } from 'lucide-react';
 
 export default function Index() {
@@ -15,5 +15,5 @@ export default function Index() {
   }
 
   if (!user) return <Login />;
-  return <Dashboard onLogout={signOut} />;
+  return <AppShell onLogout={signOut} />;
 }

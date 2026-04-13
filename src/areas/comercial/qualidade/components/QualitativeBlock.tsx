@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import type { LeadQuality } from '@/types/leads';
-import { SCORE_COLORS } from '@/types/leads';
+import type { LeadQuality } from '../types';
+import { SCORE_COLORS } from '../types';
 
 interface Props {
   leads: LeadQuality[];

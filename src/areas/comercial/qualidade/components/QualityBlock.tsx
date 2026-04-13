@@ -11,13 +11,13 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import type { LeadQuality } from '@/types/leads';
+import type { LeadQuality } from '../types';
 import {
   SCORE_MAP,
   SCORE_LABELS,
   SCORE_COLORS,
   SCORE_OPTIONS,
-} from '@/types/leads';
+} from '../types';
 
 interface Props {
   leads: LeadQuality[];

@@ -8,8 +8,8 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import type { LeadQuality } from '@/types/leads';
-import { SCORE_MAP } from '@/types/leads';
+import type { LeadQuality } from '../types';
+import { SCORE_MAP } from '../types';
 
 interface Props {
   leads: LeadQuality[];

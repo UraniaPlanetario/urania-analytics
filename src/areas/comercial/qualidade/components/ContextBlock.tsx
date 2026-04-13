@@ -11,8 +11,8 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import type { LeadQuality } from '@/types/leads';
-import { DAY_ORDER, TEMPO_RESPOSTA_ORDER } from '@/types/leads';
+import type { LeadQuality } from '../types';
+import { DAY_ORDER, TEMPO_RESPOSTA_ORDER } from '../types';
 
 interface Props {
   leads: LeadQuality[];

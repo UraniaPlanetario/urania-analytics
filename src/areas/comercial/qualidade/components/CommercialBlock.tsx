@@ -13,8 +13,8 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import type { LeadQuality } from '@/types/leads';
-import { DIAS_FECHAR_ORDER, LIGACOES_ORDER } from '@/types/leads';
+import type { LeadQuality } from '../types';
+import { DIAS_FECHAR_ORDER, LIGACOES_ORDER } from '../types';
 
 interface Props {
   leads: LeadQuality[];

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { LeadQuality, Filters } from '@/types/leads';
+import { LeadQuality, Filters } from '../types';
 import { useMemo } from 'react';
 
 export function useLeadsData() {
