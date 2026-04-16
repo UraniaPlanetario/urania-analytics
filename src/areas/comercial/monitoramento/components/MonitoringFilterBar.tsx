@@ -14,8 +14,7 @@ const WEEKDAY_NAMES = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 const ROLE_OPTIONS = [
   { value: 'SDR', label: 'SDR' },
-  { value: 'Vendas Inbound', label: 'Vendas Inbound' },
-  { value: 'Consultor', label: 'Consultor' },
+  { value: 'Consultores Inbound', label: 'Consultores Inbound' },
 ];
 
 function CalendarMonth({
