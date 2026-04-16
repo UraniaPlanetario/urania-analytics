@@ -28,5 +28,6 @@ export const CATEGORY_COLORS: Record<string, string> = {
 export interface MonitoringFilters {
   users: string[];
   categories: string[];
+  roles: string[];
   dateRange: { from: Date | null; to: Date | null };
 }

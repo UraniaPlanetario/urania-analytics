@@ -17,9 +17,12 @@ export function OverviewBlock({ activities }: { activities: UserActivity[] }) {
     return { total, users, avgPerUser, avgPerDay, days };
   }, [activities]);
 
+  const EXCLUDED = ['Tag', 'Vinculacao'];
+
   const byCategory = useMemo(() => {
     const map: Record<string, number> = {};
     for (const a of activities) {
+      if (EXCLUDED.includes(a.category)) continue;
       map[a.category] = (map[a.category] || 0) + a.activity_count;
     }
     return Object.entries(map)

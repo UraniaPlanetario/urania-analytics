@@ -17,6 +17,7 @@ export default function MonitoramentoDashboard() {
   const [filters, setFilters] = useState<MonitoringFilters>({
     users: [],
     categories: [],
+    roles: [],
     dateRange: { from: null, to: null },
   });
 

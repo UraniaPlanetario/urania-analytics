@@ -54,6 +54,7 @@ export function useFilteredActivities(activities: UserActivity[], filters: Monit
     return activities.filter((a) => {
       if (filters.users.length > 0 && !filters.users.includes(a.user_name)) return false;
       if (filters.categories.length > 0 && !filters.categories.includes(a.category)) return false;
+      if (filters.roles.length > 0 && !filters.roles.includes(a.role_name || '')) return false;
       return true;
     });
   }, [activities, filters]);
