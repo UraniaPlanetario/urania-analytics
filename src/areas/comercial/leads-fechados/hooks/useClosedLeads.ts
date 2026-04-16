@@ -36,13 +36,15 @@ export function useFilteredClosed(leads: LeadClosed[], filters: ClosedFilters) {
       if (filters.vendedores.length > 0 && !filters.vendedores.includes(l.vendedor || '')) return false;
       if (filters.cancelado === 'sim' && !l.cancelado) return false;
       if (filters.cancelado === 'nao' && l.cancelado) return false;
-      if (filters.dateRange.from) {
-        const d = parseTimestamp(l.data_fechamento) ?? new Date(l.entrada_onboarding_at);
-        if (d < filters.dateRange.from) return false;
+      // Para cancelados, usar data de cancelamento; para ativos, data de fechamento
+      const refDate = l.cancelado
+        ? (l.cancelado_at ? new Date(l.cancelado_at) : null)
+        : (parseTimestamp(l.data_fechamento) ?? new Date(l.entrada_onboarding_at));
+      if (filters.dateRange.from && refDate) {
+        if (refDate < filters.dateRange.from) return false;
       }
-      if (filters.dateRange.to) {
-        const d = parseTimestamp(l.data_fechamento) ?? new Date(l.entrada_onboarding_at);
-        if (d > filters.dateRange.to) return false;
+      if (filters.dateRange.to && refDate) {
+        if (refDate > filters.dateRange.to) return false;
       }
       return true;
     });

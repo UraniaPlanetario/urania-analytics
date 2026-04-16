@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 import { LeadClosed, parseTimestamp } from '../types';
 
 const TOOLTIP_STYLE = {
@@ -39,17 +39,6 @@ export function OverviewBlock({ leads }: { leads: LeadClosed[] }) {
         const label = `${MONTH_LABELS[Number(month)]}/${year.slice(2)}`;
         return { name: label, value };
       });
-  }, [leads]);
-
-  const byPipeline = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const l of leads) {
-      const key = l.pipeline_origem || 'Não informado';
-      map[key] = (map[key] || 0) + 1;
-    }
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
   }, [leads]);
 
   const byTipoCliente = useMemo(() => {
@@ -98,20 +87,9 @@ export function OverviewBlock({ leads }: { leads: LeadClosed[] }) {
             <XAxis dataKey="name" stroke="hsl(240, 5%, 65%)" tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
             <YAxis stroke="hsl(240, 5%, 65%)" tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
             <Tooltip {...TOOLTIP_STYLE} formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Fechamentos']} />
-            <Bar dataKey="value" fill="hsl(263, 70%, 58%)" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Por Pipeline de Origem */}
-      <div className="card-glass p-4 rounded-xl">
-        <h3 className="text-base font-semibold text-foreground mb-4">Por Pipeline de Origem</h3>
-        <ResponsiveContainer width="100%" height={Math.max(200, byPipeline.length * 40)}>
-          <BarChart data={byPipeline} layout="vertical" margin={{ left: 140 }}>
-            <XAxis type="number" stroke="hsl(240, 5%, 65%)" tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
-            <YAxis type="category" dataKey="name" stroke="hsl(240, 5%, 65%)" width={135} tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
-            <Tooltip {...TOOLTIP_STYLE} formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Leads']} />
-            <Bar dataKey="value" fill="hsl(263, 60%, 70%)" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="value" fill="hsl(263, 70%, 58%)" radius={[4, 4, 0, 0]}>
+              <LabelList dataKey="value" position="top" fill="hsl(240, 5%, 65%)" fontSize={11} />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>

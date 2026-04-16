@@ -248,7 +248,7 @@ function DateRangePicker({
 
   return (
     <div className="relative" ref={triggerRef}>
-      <label className="text-xs text-muted-foreground mb-1 block">Data Fechamento</label>
+      <label className="text-xs text-muted-foreground mb-1 block">Data</label>
       <button
         type="button"
         onClick={() => { setOpen(!open); setViewMode('days'); }}
