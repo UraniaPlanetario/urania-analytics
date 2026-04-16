@@ -233,7 +233,7 @@ function DateRangePicker({
     ? `${format(localFrom, 'dd/MM/yyyy')} – ${format(localTo, 'dd/MM/yyyy')}`
     : localFrom
     ? `${format(localFrom, 'dd/MM/yyyy')} – ...`
-    : 'Selecionar período...';
+    : null;
 
   const hasValue = localFrom || localTo;
   const secondMonth = addMonths(baseMonth, 1);
@@ -263,7 +263,11 @@ function DateRangePicker({
         className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-secondary border border-border text-xs text-foreground text-left"
       >
         <Calendar size={14} className="text-muted-foreground shrink-0" />
-        <span className={hasValue ? 'text-foreground' : 'text-muted-foreground'}>{displayText}</span>
+        {displayText ? (
+          <span className="text-foreground">{displayText}</span>
+        ) : (
+          <span className="text-muted-foreground/70 italic">Este Mês (padrão)</span>
+        )}
         {hasValue && (
           <X size={12} className="ml-auto text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
             onClick={(e) => { e.stopPropagation(); onChange({ from: null, to: null }); }}

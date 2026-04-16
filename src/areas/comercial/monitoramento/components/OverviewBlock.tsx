@@ -59,7 +59,7 @@ export function OverviewBlock({ activities }: { activities: UserActivity[] }) {
           <BarChart data={byCategory} layout="vertical" margin={{ left: 120 }}>
             <XAxis type="number" stroke="hsl(240, 5%, 65%)" />
             <YAxis type="category" dataKey="name" stroke="hsl(240, 5%, 65%)" width={115} tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
-            <Tooltip {...TOOLTIP_STYLE} />
+            <Tooltip {...TOOLTIP_STYLE} formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Total']} />
             <Bar dataKey="value" radius={[0, 4, 4, 0]}>
               {byCategory.map((c, idx) => (
                 <Cell key={idx} fill={CATEGORY_COLORS[c.name] || 'hsl(263, 70%, 58%)'} />

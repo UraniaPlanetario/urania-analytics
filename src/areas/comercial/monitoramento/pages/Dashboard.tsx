@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { startOfMonth } from 'date-fns';
 import { useActivitiesData, useFilteredActivities } from '../hooks/useActivitiesData';
 import { MonitoringFilters } from '../types';
 import { MonitoringFilterBar } from '../components/MonitoringFilterBar';
@@ -24,6 +25,11 @@ export default function MonitoramentoDashboard() {
   const { data: activities = [], isLoading, error } = useActivitiesData(filters);
   const filtered = useFilteredActivities(activities, filters);
   const [activeSection, setActiveSection] = useState('overview');
+
+  const effectiveDateRange = {
+    from: filters.dateRange.from ?? startOfMonth(new Date()),
+    to: filters.dateRange.to ?? new Date(),
+  };
 
   if (isLoading) return (
     <div className="flex items-center justify-center py-20">
@@ -68,7 +74,7 @@ export default function MonitoramentoDashboard() {
       <div className="max-w-6xl">
         {activeSection === 'overview' && <OverviewBlock activities={filtered} />}
         {activeSection === 'categories' && <UsersBlock activities={filtered} />}
-        {activeSection === 'user-detail' && <UserDetailBlock activities={filtered} />}
+        {activeSection === 'user-detail' && <UserDetailBlock activities={filtered} dateRange={effectiveDateRange} />}
       </div>
     </div>
   );
