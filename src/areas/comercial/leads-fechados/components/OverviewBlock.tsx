@@ -27,7 +27,7 @@ export function OverviewBlock({ leads }: { leads: LeadClosed[] }) {
   const byMonth = useMemo(() => {
     const map: Record<string, number> = {};
     for (const l of leads) {
-      const d = new Date(l.entrada_onboarding_at);
+      const d = l.data_fechamento_fmt ? new Date(l.data_fechamento_fmt) : new Date(l.entrada_onboarding_at);
       if (isNaN(d.getTime())) continue;
       const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
       map[key] = (map[key] || 0) + 1;

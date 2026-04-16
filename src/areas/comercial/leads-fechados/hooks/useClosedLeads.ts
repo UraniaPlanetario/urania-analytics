@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { LeadClosed, ClosedFilters, parseTimestamp } from '../types';
+import { LeadClosed, ClosedFilters } from '../types';
 import { useMemo } from 'react';
 
 export function useClosedLeads() {
@@ -36,16 +36,10 @@ export function useFilteredClosed(leads: LeadClosed[], filters: ClosedFilters) {
       if (filters.vendedores.length > 0 && !filters.vendedores.includes(l.vendedor || '')) return false;
       if (filters.cancelado === 'sim' && !l.cancelado) return false;
       if (filters.cancelado === 'nao' && l.cancelado) return false;
-      // Para cancelados, usar data de cancelamento; para ativos, data de fechamento
-      const refDate = l.cancelado
-        ? (l.cancelado_at ? new Date(l.cancelado_at) : null)
-        : (parseTimestamp(l.data_fechamento) ?? new Date(l.entrada_onboarding_at));
-      if (filters.dateRange.from && refDate) {
-        if (refDate < filters.dateRange.from) return false;
-      }
-      if (filters.dateRange.to && refDate) {
-        if (refDate > filters.dateRange.to) return false;
-      }
+      const refDateStr = l.cancelado ? l.data_cancelamento_fmt : l.data_fechamento_fmt;
+      const refDate = refDateStr ? new Date(refDateStr) : new Date(l.entrada_onboarding_at);
+      if (filters.dateRange.from && refDate < filters.dateRange.from) return false;
+      if (filters.dateRange.to && refDate > filters.dateRange.to) return false;
       return true;
     });
   }, [leads, filters]);

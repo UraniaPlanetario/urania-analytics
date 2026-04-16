@@ -10,9 +10,20 @@ export interface LeadClosed {
   produtos: string | null;
   data_fechamento: string | null;
   data_agendamento: string | null;
+  data_fechamento_fmt: string | null;
+  data_agendamento_fmt: string | null;
+  data_cancelamento_fmt: string | null;
   n_diarias: string | null;
   faixa_alunos: string | null;
   n_alunos: string | null;
+  canal_entrada: string | null;
+  origem_oportunidade: string | null;
+  experiencia: string | null;
+  conteudo_apresentacao: string | null;
+  horizonte_agendamento: string | null;
+  astronomo: string | null;
+  turnos_evento: string | null;
+  brinde: string | null;
   pipeline_origem: string | null;
   pipeline_onboarding: string | null;
   entrada_onboarding_at: string;
@@ -29,15 +40,16 @@ export interface ClosedFilters {
   dateRange: { from: Date | null; to: Date | null };
 }
 
-export function parseTimestamp(ts: string | null): Date | null {
-  if (!ts) return null;
-  const num = Number(ts);
-  if (!isNaN(num) && num > 1000000000) return new Date(num * 1000);
-  return new Date(ts);
+export function formatDateBR(dateStr: string | null): string {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('pt-BR');
 }
 
-export function formatDateBR(ts: string | null): string {
-  const d = parseTimestamp(ts);
-  if (!d || isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('pt-BR');
+export function formatDateTimeBR(dateStr: string | null): string {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }

@@ -76,7 +76,7 @@ export function DetailBlock({ leads }: { leads: LeadClosed[] }) {
                   <td className="py-2 px-3 text-foreground">{l.vendedor || '—'}</td>
                   <td className="py-2 px-3 text-foreground max-w-[180px] truncate">{l.produtos || '—'}</td>
                   <td className="py-2 px-3 text-foreground">{l.cidade_estado || '—'}</td>
-                  <td className="py-2 px-3 text-foreground">{formatDateBR(l.data_fechamento)}</td>
+                  <td className="py-2 px-3 text-foreground">{formatDateBR(l.data_fechamento_fmt)}</td>
                   <td className="py-2 px-3 text-foreground">{l.tipo_cliente || '—'}</td>
                   <td className="py-2 px-3 text-center text-foreground">{l.occurrence}</td>
                   <td className="py-2 px-3 text-center">
@@ -99,29 +99,63 @@ export function DetailBlock({ leads }: { leads: LeadClosed[] }) {
                           <span className="text-foreground ml-1">{l.sdr || '—'}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Pipeline Origem:</span>
-                          <span className="text-foreground ml-1">{l.pipeline_origem || '—'}</span>
+                          <span className="text-muted-foreground">Data Agendamento:</span>
+                          <span className="text-foreground ml-1">{formatDateBR(l.data_agendamento_fmt)}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Data Agendamento:</span>
-                          <span className="text-foreground ml-1">{formatDateBR(l.data_agendamento)}</span>
+                          <span className="text-muted-foreground">Canal de Entrada:</span>
+                          <span className="text-foreground ml-1">{l.canal_entrada || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Origem:</span>
+                          <span className="text-foreground ml-1">{l.origem_oportunidade || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Experiência:</span>
+                          <span className="text-foreground ml-1">{l.experiencia || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Conteúdo:</span>
+                          <span className="text-foreground ml-1">{l.conteudo_apresentacao || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Astrônomo:</span>
+                          <span className="text-foreground ml-1">{l.astronomo || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Horizonte Agendamento:</span>
+                          <span className="text-foreground ml-1">{l.horizonte_agendamento || '—'}</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Faixa Alunos:</span>
                           <span className="text-foreground ml-1">{l.faixa_alunos || '—'}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">N Alunos:</span>
+                          <span className="text-muted-foreground">Nº Alunos:</span>
                           <span className="text-foreground ml-1">{l.n_alunos || '—'}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">N Diárias:</span>
+                          <span className="text-muted-foreground">Nº Diárias:</span>
                           <span className="text-foreground ml-1">{l.n_diarias || '—'}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Lead Price:</span>
+                          <span className="text-muted-foreground">Turnos:</span>
+                          <span className="text-foreground ml-1">{l.turnos_evento || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Brinde:</span>
+                          <span className="text-foreground ml-1">{l.brinde || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Valor:</span>
                           <span className="text-foreground ml-1">{formatCurrency(l.lead_price)}</span>
                         </div>
+                        {l.cancelado && l.data_cancelamento_fmt && (
+                          <div>
+                            <span className="text-muted-foreground">Data Cancelamento:</span>
+                            <span className="text-red-400 ml-1">{formatDateBR(l.data_cancelamento_fmt)}</span>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
