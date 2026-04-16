@@ -145,13 +145,17 @@ def upsert_events(events):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--backfill', action='store_true', help='Backfill desde 01/01/2026')
+    parser.add_argument('--from-date', type=str, help='Data inicial (YYYY-MM-DD) para retomar backfill')
     parser.add_argument('--days', type=int, default=2, help='Dias para trás no modo incremental')
     args = parser.parse_args()
 
     sync_users()
 
     now = datetime.now(timezone.utc)
-    if args.backfill:
+    if args.from_date:
+        start_date = datetime.strptime(args.from_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+        print(f'\n[Resume] Desde {start_date.date()} até {now.date()}')
+    elif args.backfill:
         start_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
         print(f'\n[Backfill] Desde {start_date.date()} até {now.date()}')
     else:
