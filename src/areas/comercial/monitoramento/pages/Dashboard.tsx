@@ -4,13 +4,13 @@ import { MonitoringFilters } from '../types';
 import { MonitoringFilterBar } from '../components/MonitoringFilterBar';
 import { OverviewBlock } from '../components/OverviewBlock';
 import { UsersBlock } from '../components/UsersBlock';
-import { HourlyBlock } from '../components/HourlyBlock';
+import { UserDetailBlock } from '../components/UserDetailBlock';
 import { Loader2 } from 'lucide-react';
 
 const SECTIONS = [
   { id: 'overview', label: 'Visão Geral' },
-  { id: 'users', label: 'Por Usuário' },
-  { id: 'hourly', label: 'Por Hora' },
+  { id: 'categories', label: 'Por Categoria' },
+  { id: 'user-detail', label: 'Por Usuário' },
 ];
 
 export default function MonitoramentoDashboard() {
@@ -67,8 +67,8 @@ export default function MonitoramentoDashboard() {
 
       <div className="max-w-6xl">
         {activeSection === 'overview' && <OverviewBlock activities={filtered} />}
-        {activeSection === 'users' && <UsersBlock activities={filtered} />}
-        {activeSection === 'hourly' && <HourlyBlock activities={filtered} />}
+        {activeSection === 'categories' && <UsersBlock activities={filtered} />}
+        {activeSection === 'user-detail' && <UserDetailBlock activities={filtered} />}
       </div>
     </div>
   );
