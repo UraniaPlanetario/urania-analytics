@@ -2,22 +2,47 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { UserActivity, MonitoringFilters } from '../types';
 import { useMemo } from 'react';
+import { subDays, startOfMonth } from 'date-fns';
+
+function getEffectiveDateRange(filters: MonitoringFilters) {
+  // Default: mês atual se nenhum filtro de data selecionado
+  const from = filters.dateRange.from ?? startOfMonth(new Date());
+  const to = filters.dateRange.to ?? new Date();
+  return {
+    from: from.toISOString().split('T')[0],
+    to: to.toISOString().split('T')[0],
+  };
+}
 
 export function useActivitiesData(filters: MonitoringFilters) {
-  // Build server-side filter on date range to reduce payload
+  const dateRange = getEffectiveDateRange(filters);
+
   return useQuery<UserActivity[]>({
-    queryKey: ['gold_user_activities', filters.dateRange.from?.toISOString(), filters.dateRange.to?.toISOString()],
+    queryKey: ['gold_user_activities', dateRange.from, dateRange.to],
     queryFn: async () => {
-      let query = supabase.schema('gold').from('user_activities').select('*');
-      if (filters.dateRange.from) {
-        query = query.gte('activity_date', filters.dateRange.from.toISOString().split('T')[0]);
+      // Paginate to get all rows (Supabase default limit is 1000)
+      const allData: UserActivity[] = [];
+      let from = 0;
+      const pageSize = 1000;
+
+      while (true) {
+        const { data, error } = await supabase
+          .schema('gold')
+          .from('user_activities')
+          .select('*')
+          .gte('activity_date', dateRange.from)
+          .lte('activity_date', dateRange.to)
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+
+        allData.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
       }
-      if (filters.dateRange.to) {
-        query = query.lte('activity_date', filters.dateRange.to.toISOString().split('T')[0]);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+
+      return allData;
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
