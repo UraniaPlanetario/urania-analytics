@@ -32,10 +32,11 @@ export function useLeadsFechados() {
         const { data, error } = await supabase
           .schema('gold')
           .from('cubo_leads_consolidado')
-          .select('id_lead, valor_total, data_de_fechamento, data_e_hora_do_agendamento, vendedor')
+          .select('id_lead, valor_total, data_de_fechamento, data_e_hora_do_agendamento, vendedor, tipo_lead')
           .eq('status_lead', 'Venda Fechada')
           .not('nome_lead', 'is', null)
           .not('data_de_fechamento', 'is', null)
+          .neq('tipo_lead', 'Shoppings')
           .gte('data_de_fechamento', `${CURRENT_YEAR}-01-01`)
           .lte('data_de_fechamento', `${CURRENT_YEAR}-12-31`)
           .range(from, from + pageSize - 1);

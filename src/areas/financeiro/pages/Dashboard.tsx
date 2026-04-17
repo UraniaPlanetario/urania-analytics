@@ -1,5 +1,5 @@
 import { useMetas, useLeadsFechados } from '../hooks/useFaturamento';
-import { GaugeChart } from '../components/GaugeChart';
+import { SpaceProgress } from '../components/SpaceProgress';
 import { MetasTable } from '../components/MetasTable';
 import { MonthlyChart } from '../components/MonthlyChart';
 import { formatCurrency } from '../types';
@@ -31,7 +31,6 @@ export default function FaturamentoDashboard() {
     );
   }
 
-  // Calculate totals
   const faturamentoTotal = leads.reduce((sum, l) => sum + (l.valor_total ?? 0), 0);
 
   const annualMetas = {
@@ -47,9 +46,7 @@ export default function FaturamentoDashboard() {
     <div>
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-foreground">Faturamento {currentYear}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Acompanhamento anual de receita vs metas
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">Acompanhamento anual de receita vs metas</p>
       </div>
 
       <div className="max-w-6xl space-y-6">
@@ -59,8 +56,8 @@ export default function FaturamentoDashboard() {
           <p className="text-3xl font-bold text-foreground mt-1">{formatCurrency(faturamentoTotal)}</p>
         </div>
 
-        {/* Gauge */}
-        <GaugeChart
+        {/* Space Progress - temática espacial */}
+        <SpaceProgress
           value={faturamentoTotal}
           meta70={annualMetas.meta70}
           meta80={annualMetas.meta80}
