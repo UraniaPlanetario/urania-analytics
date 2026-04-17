@@ -52,13 +52,16 @@ export function VendedorBlock({ leads }: { leads: LeadClosed[] }) {
     <div className="space-y-6">
       {/* Chart */}
       <div className="card-glass p-4 rounded-xl">
-        <h3 className="text-base font-semibold text-foreground mb-4">Diárias Fechadas por Vendedor</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-foreground">Diárias Fechadas por Vendedor</h3>
+          <p className="text-xs text-muted-foreground">Linha tracejada = média ({Math.round(avgDiarias)} diárias)</p>
+        </div>
         <ResponsiveContainer width="100%" height={Math.max(250, chartData.length * 40)}>
-          <BarChart data={chartData} layout="vertical" margin={{ left: 140 }}>
+          <BarChart data={chartData} layout="vertical" margin={{ left: 140, right: 50 }}>
             <XAxis type="number" stroke="hsl(240, 5%, 65%)" tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
             <YAxis type="category" dataKey="name" stroke="hsl(240, 5%, 65%)" width={135} tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
             <Tooltip {...TOOLTIP_STYLE} formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Diárias']} />
-            <ReferenceLine x={avgDiarias} stroke="hsl(0, 0%, 50%)" strokeDasharray="3 3" label={{ value: `Média: ${Math.round(avgDiarias)}`, fill: 'hsl(240, 5%, 65%)', fontSize: 11, position: 'top' }} />
+            <ReferenceLine x={avgDiarias} stroke="hsl(45, 80%, 55%)" strokeDasharray="4 4" />
             <Bar dataKey="value" fill="hsl(263, 70%, 58%)" radius={[0, 4, 4, 0]}>
               <LabelList dataKey="value" position="right" fill="hsl(240, 5%, 65%)" fontSize={11} fontWeight={600} />
             </Bar>
