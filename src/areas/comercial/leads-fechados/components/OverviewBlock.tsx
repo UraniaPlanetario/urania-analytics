@@ -17,10 +17,14 @@ export function OverviewBlock({ leads }: { leads: LeadClosed[] }) {
   const stats = useMemo(() => {
     const total = leads.length;
     const receita = leads.reduce((s, l) => s + (l.lead_price || 0), 0);
-    const ticketMedio = total > 0 ? receita / total : 0;
+    const totalDiarias = leads.reduce((s, l) => {
+      const n = parseInt(l.n_diarias || '0', 10);
+      return s + (isNaN(n) ? 0 : n);
+    }, 0);
+    const ticketMedio = totalDiarias > 0 ? receita / totalDiarias : 0;
     const cancelados = leads.filter((l) => l.cancelado).length;
     const canceladosPct = total > 0 ? ((cancelados / total) * 100).toFixed(1) : '0.0';
-    return { total, receita, ticketMedio, cancelados, canceladosPct };
+    return { total, receita, ticketMedio, totalDiarias, cancelados, canceladosPct };
   }, [leads]);
 
   const byMonth = useMemo(() => {
