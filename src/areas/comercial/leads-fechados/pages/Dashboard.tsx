@@ -4,18 +4,19 @@ import { ClosedFilters } from '../types';
 import { ClosedFilterBar } from '../components/ClosedFilterBar';
 import { OverviewBlock } from '../components/OverviewBlock';
 import { VendedorBlock } from '../components/VendedorBlock';
-import { DetailBlock } from '../components/DetailBlock';
+import { AstronomoBlock } from '../components/AstronomoBlock';
 import { Loader2 } from 'lucide-react';
 
 const SECTIONS = [
   { id: 'overview', label: 'Visão Geral' },
   { id: 'vendedor', label: 'Por Vendedor' },
-  { id: 'detail', label: 'Detalhamento' },
+  { id: 'astronomos', label: 'Astrônomos' },
 ];
 
 export default function LeadsFechadosDashboard() {
   const [filters, setFilters] = useState<ClosedFilters>({
     vendedores: [],
+    astronomos: [],
     cancelado: 'all',
     dateRange: {
       from: new Date(new Date().getFullYear(), 0, 1),
@@ -70,7 +71,7 @@ export default function LeadsFechadosDashboard() {
       <div className="max-w-6xl">
         {activeSection === 'overview' && <OverviewBlock leads={filtered} />}
         {activeSection === 'vendedor' && <VendedorBlock leads={filtered} />}
-        {activeSection === 'detail' && <DetailBlock leads={filtered} />}
+        {activeSection === 'astronomos' && <AstronomoBlock leads={filtered} />}
       </div>
     </div>
   );

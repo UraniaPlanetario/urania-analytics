@@ -34,6 +34,7 @@ export function useFilteredClosed(leads: LeadClosed[], filters: ClosedFilters) {
   return useMemo(() => {
     return leads.filter((l) => {
       if (filters.vendedores.length > 0 && !filters.vendedores.includes(l.vendedor || '')) return false;
+      if (filters.astronomos.length > 0 && !filters.astronomos.includes(l.astronomo || '')) return false;
       if (filters.cancelado === 'sim' && !l.cancelado) return false;
       if (filters.cancelado === 'nao' && l.cancelado) return false;
       const refDateStr = l.cancelado ? l.data_cancelamento_fmt : l.data_fechamento_fmt;

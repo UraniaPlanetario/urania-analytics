@@ -353,7 +353,11 @@ export function ClosedFilterBar({ leads, filters, onFiltersChange }: Props) {
     return Array.from(new Set(leads.map((l) => l.vendedor).filter(Boolean) as string[])).sort();
   }, [leads]);
 
-  const hasFilters = filters.vendedores.length > 0 || filters.cancelado !== 'all' ||
+  const astronomos = useMemo(() => {
+    return Array.from(new Set(leads.map((l) => l.astronomo).filter(Boolean) as string[])).sort();
+  }, [leads]);
+
+  const hasFilters = filters.vendedores.length > 0 || filters.astronomos.length > 0 || filters.cancelado !== 'all' ||
     filters.dateRange.from || filters.dateRange.to;
 
   const toggleVendedor = (v: string) => {
@@ -361,6 +365,13 @@ export function ClosedFilterBar({ leads, filters, onFiltersChange }: Props) {
       ? filters.vendedores.filter((x) => x !== v)
       : [...filters.vendedores, v];
     onFiltersChange({ ...filters, vendedores: next });
+  };
+
+  const toggleAstronomo = (v: string) => {
+    const next = filters.astronomos.includes(v)
+      ? filters.astronomos.filter((x) => x !== v)
+      : [...filters.astronomos, v];
+    onFiltersChange({ ...filters, astronomos: next });
   };
 
   const statusOptions: { value: ClosedFilters['cancelado']; label: string }[] = [
@@ -375,7 +386,7 @@ export function ClosedFilterBar({ leads, filters, onFiltersChange }: Props) {
         <h3 className="text-sm font-medium text-foreground">Filtros</h3>
         {hasFilters && (
           <button
-            onClick={() => onFiltersChange({ vendedores: [], cancelado: 'all', dateRange: { from: null, to: null } })}
+            onClick={() => onFiltersChange({ vendedores: [], astronomos: [], cancelado: 'all', dateRange: { from: null, to: null } })}
             className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
           >
             <X size={12} /> Limpar
@@ -383,7 +394,7 @@ export function ClosedFilterBar({ leads, filters, onFiltersChange }: Props) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         {/* Vendedor multiselect */}
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">Vendedor</label>
@@ -424,6 +435,28 @@ export function ClosedFilterBar({ leads, filters, onFiltersChange }: Props) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Astrônomo multiselect */}
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Astrônomo</label>
+          <select
+            className="w-full px-2 py-1.5 rounded-lg bg-secondary border border-border text-sm text-foreground"
+            value=""
+            onChange={(e) => e.target.value && toggleAstronomo(e.target.value)}
+          >
+            <option value="">Selecionar astrônomo...</option>
+            {astronomos.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+          {filters.astronomos.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {filters.astronomos.map((v) => (
+                <span key={v} className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
+                  {v} <X size={10} className="cursor-pointer" onClick={() => toggleAstronomo(v)} />
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Date range */}

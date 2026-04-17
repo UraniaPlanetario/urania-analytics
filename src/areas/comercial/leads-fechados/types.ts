@@ -36,6 +36,7 @@ export interface LeadClosed {
 
 export interface ClosedFilters {
   vendedores: string[];
+  astronomos: string[];
   cancelado: 'all' | 'sim' | 'nao';
   dateRange: { from: Date | null; to: Date | null };
 }
