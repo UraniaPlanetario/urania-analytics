@@ -35,10 +35,10 @@ export function useLeadsFechados() {
           .select('id_lead, valor_total, data_de_fechamento, data_e_hora_do_agendamento, vendedor, tipo_lead')
           .eq('status_lead', 'Venda Fechada')
           .not('nome_lead', 'is', null)
-          .not('data_de_fechamento', 'is', null)
+          .not('data_e_hora_do_agendamento', 'is', null)
           .neq('tipo_lead', 'Shoppings')
-          .gte('data_de_fechamento', `${CURRENT_YEAR}-01-01`)
-          .lte('data_de_fechamento', `${CURRENT_YEAR}-12-31`)
+          .gte('data_e_hora_do_agendamento', `${CURRENT_YEAR}-01-01`)
+          .lte('data_e_hora_do_agendamento', `${CURRENT_YEAR}-12-31T23:59:59`)
           .range(from, from + pageSize - 1);
         if (error) throw error;
         if (!data || data.length === 0) break;

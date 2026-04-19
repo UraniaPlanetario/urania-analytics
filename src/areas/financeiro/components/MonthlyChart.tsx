@@ -21,11 +21,11 @@ const TOOLTIP_STYLE = {
 };
 
 export function MonthlyChart({ leads, metas }: MonthlyChartProps) {
-  // Aggregate revenue by month
+  // Aggregate revenue by month (based on data_e_hora_do_agendamento)
   const revenueByMonth = new Map<number, number>();
   for (const lead of leads) {
-    if (!lead.data_de_fechamento || lead.valor_total == null) continue;
-    const month = new Date(lead.data_de_fechamento).getMonth(); // 0-based
+    if (!lead.data_e_hora_do_agendamento || lead.valor_total == null) continue;
+    const month = new Date(lead.data_e_hora_do_agendamento).getMonth(); // 0-based
     revenueByMonth.set(month, (revenueByMonth.get(month) || 0) + lead.valor_total);
   }
 
@@ -35,13 +35,11 @@ export function MonthlyChart({ leads, metas }: MonthlyChartProps) {
     metaByMonth.set(m.mes - 1, m); // mes is 1-based in DB
   }
 
-  const currentMonth = new Date().getMonth();
-
   const data = MONTH_LABELS.map((label, i) => {
     const meta = metaByMonth.get(i);
     return {
       name: label,
-      faturamento: i <= currentMonth ? (revenueByMonth.get(i) || 0) : 0,
+      faturamento: revenueByMonth.get(i) || 0,
       meta70: meta?.meta_70 ?? 0,
       meta80: meta?.meta_80 ?? 0,
       meta90: meta?.meta_90 ?? 0,
