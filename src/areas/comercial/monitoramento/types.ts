@@ -31,3 +31,39 @@ export interface MonitoringFilters {
   roles: string[];
   dateRange: { from: Date | null; to: Date | null };
 }
+
+export const FIM_FUNIL_ESTAGIOS = [
+  'Negociação',
+  'Geladeira',
+  'Venda provável',
+  'Falar com Direção/Decisor',
+];
+
+export type ClassificacaoCRM = 'Boa' | 'Moderada' | 'Baixa' | 'Extremamente Baixa';
+
+export interface ConsistenciaVendedor {
+  user_id: number;
+  user_name: string;
+  leads_abertos: number;
+  leads_fechados_periodo: number;
+  tarefas_em_atraso: number;
+  sem_tarefa: number;
+  atraso_fim_funil: number;
+  acoes_periodo: number;
+  acoes_por_lead: number;
+  classificacao: ClassificacaoCRM;
+}
+
+export function classifyConsistencia(acoesPorLead: number): ClassificacaoCRM {
+  if (acoesPorLead >= 3.0) return 'Boa';
+  if (acoesPorLead >= 1.5) return 'Moderada';
+  if (acoesPorLead >= 0.7) return 'Baixa';
+  return 'Extremamente Baixa';
+}
+
+export const CLASSIFICACAO_COLORS: Record<ClassificacaoCRM, string> = {
+  'Boa': 'hsl(142, 60%, 50%)',
+  'Moderada': 'hsl(45, 80%, 55%)',
+  'Baixa': 'hsl(25, 80%, 55%)',
+  'Extremamente Baixa': 'hsl(0, 72%, 51%)',
+};

@@ -6,12 +6,16 @@ import { MonitoringFilterBar } from '../components/MonitoringFilterBar';
 import { OverviewBlock } from '../components/OverviewBlock';
 import { UsersBlock } from '../components/UsersBlock';
 import { UserDetailBlock } from '../components/UserDetailBlock';
+import { ConsistenciaCRMBlock } from '../components/ConsistenciaCRMBlock';
+import { RankingPercentilBlock } from '../components/RankingPercentilBlock';
 import { Loader2 } from 'lucide-react';
 
 const SECTIONS = [
   { id: 'overview', label: 'Visão Geral' },
   { id: 'categories', label: 'Por Categoria' },
   { id: 'user-detail', label: 'Por Usuário' },
+  { id: 'consistencia', label: 'Consistência CRM' },
+  { id: 'ranking', label: 'Ranking por Percentil' },
 ];
 
 export default function MonitoramentoDashboard() {
@@ -75,6 +79,8 @@ export default function MonitoramentoDashboard() {
         {activeSection === 'overview' && <OverviewBlock activities={filtered} />}
         {activeSection === 'categories' && <UsersBlock activities={filtered} />}
         {activeSection === 'user-detail' && <UserDetailBlock activities={filtered} dateRange={effectiveDateRange} />}
+        {activeSection === 'consistencia' && <ConsistenciaCRMBlock activities={filtered} dateRange={effectiveDateRange} />}
+        {activeSection === 'ranking' && <RankingPercentilBlock activities={filtered} />}
       </div>
     </div>
   );
