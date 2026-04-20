@@ -5,6 +5,7 @@ import {
   useOpenLeads,
   useClosedLeadsPeriodo,
   useOpenTasks,
+  useCamposAlteradosFiltered,
 } from '../hooks/useConsistenciaData';
 import {
   UserActivity,
@@ -15,7 +16,7 @@ import {
   ClassificacaoCRM,
 } from '../types';
 
-const EXCLUDED_CATEGORIES = new Set(['Tag', 'Vinculacao', 'Outros']);
+const EXCLUDED_CATEGORIES = new Set(['Tag', 'Vinculacao', 'Outros', 'Campo alterado']);
 
 function toDateStr(d: Date): string {
   return d.toISOString().split('T')[0];
@@ -34,6 +35,7 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
   const { data: openLeads = [], isLoading: loadingLeads } = useOpenLeads();
   const { data: closedLeads = [], isLoading: loadingClosed } = useClosedLeadsPeriodo(fromStr, toStr);
   const { data: openTasks = [], isLoading: loadingTasks } = useOpenTasks();
+  const { data: camposFiltered = {}, isLoading: loadingCampos } = useCamposAlteradosFiltered(fromStr, toStr);
 
   const rows = useMemo<ConsistenciaVendedor[]>(() => {
     if (consultores.length === 0) return [];
@@ -94,6 +96,10 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
       const uid = a.user_id;
       acoesPorVendedor.set(uid, (acoesPorVendedor.get(uid) || 0) + a.activity_count);
     }
+    for (const [uidStr, count] of Object.entries(camposFiltered)) {
+      const uid = Number(uidStr);
+      acoesPorVendedor.set(uid, (acoesPorVendedor.get(uid) || 0) + count);
+    }
 
     const out: ConsistenciaVendedor[] = [];
     for (const u of consultores) {
@@ -127,7 +133,7 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
       });
     }
     return out.sort((a, b) => b.acoes_por_lead - a.acoes_por_lead);
-  }, [consultores, openLeads, closedLeads, openTasks, activities]);
+  }, [consultores, openLeads, closedLeads, openTasks, activities, camposFiltered]);
 
   const summary = useMemo(() => {
     const counts: Record<ClassificacaoCRM, number> = {
@@ -140,7 +146,7 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
     return counts;
   }, [rows]);
 
-  const loading = loadingUsers || loadingLeads || loadingClosed || loadingTasks;
+  const loading = loadingUsers || loadingLeads || loadingClosed || loadingTasks || loadingCampos;
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -157,8 +163,10 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
           <div className="text-sm text-muted-foreground">
             <p className="font-medium text-foreground mb-1">Como o score é calculado</p>
             <p>
-              <strong>Score = Ações no período ÷ Leads abertos</strong> (pipeline Vendas WhatsApp,
-              Consultores Inbound ativos). Classificação por faixas fixas:
+              <strong>Score = Ações no período ÷ Leads abertos</strong>. Leads abertos = snapshot
+              atual de leads no pipeline <strong>Vendas WhatsApp</strong>, status "Em andamento"
+              (não fechados/perdidos/cancelados), atribuídos a Consultores Inbound ativos.
+              Classificação por faixas fixas:
             </p>
             <ul className="mt-2 space-y-0.5">
               <li>
@@ -193,6 +201,12 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
               Tarefas em atraso, sem tarefa e atraso em fim de funil (Negociação, Geladeira, Venda
               provável, Falar com Direção/Decisor) são <em>snapshot atual</em> — informativos, fora
               do score.
+            </p>
+            <p className="mt-1 text-xs">
+              Ações contadas: mensagens, movimentações, ligações, notas, tarefas e campos alterados
+              (excluindo 6 campos automatizados por bots: Etapa do funil, Parar IA WhatsApp/Instagram,
+              Origem da oportunidade, Canal de entrada, tracking 586018). Categorias Tag, Vinculação
+              e Outros excluídas.
             </p>
           </div>
         </div>

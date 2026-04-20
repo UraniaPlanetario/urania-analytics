@@ -80,7 +80,7 @@ export default function MonitoramentoDashboard() {
         {activeSection === 'categories' && <UsersBlock activities={filtered} />}
         {activeSection === 'user-detail' && <UserDetailBlock activities={filtered} dateRange={effectiveDateRange} />}
         {activeSection === 'consistencia' && <ConsistenciaCRMBlock activities={filtered} dateRange={effectiveDateRange} />}
-        {activeSection === 'ranking' && <RankingPercentilBlock activities={filtered} />}
+        {activeSection === 'ranking' && <RankingPercentilBlock activities={filtered} dateRange={effectiveDateRange} />}
       </div>
     </div>
   );

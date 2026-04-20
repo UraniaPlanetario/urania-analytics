@@ -5,10 +5,11 @@ import {
   useActiveConsultores,
   useOpenLeads,
   useOpenTasks,
+  useCamposAlteradosFiltered,
 } from '../hooks/useConsistenciaData';
 import { UserActivity } from '../types';
 
-const EXCLUDED_CATEGORIES = new Set(['Tag', 'Vinculacao', 'Outros']);
+const EXCLUDED_CATEGORIES = new Set(['Tag', 'Vinculacao', 'Outros', 'Campo alterado']);
 
 const TOOLTIP_STYLE = {
   contentStyle: { backgroundColor: 'hsl(240, 10%, 10%)', border: 'none', borderRadius: 8 },
@@ -42,12 +43,20 @@ const FAIXA_COLORS: Record<Row['faixa'], string> = {
 
 interface Props {
   activities: UserActivity[];
+  dateRange: { from: Date; to: Date };
 }
 
-export function RankingPercentilBlock({ activities }: Props) {
+function toDateStr(d: Date): string {
+  return d.toISOString().split('T')[0];
+}
+
+export function RankingPercentilBlock({ activities, dateRange }: Props) {
+  const fromStr = toDateStr(dateRange.from);
+  const toStr = toDateStr(dateRange.to);
   const { data: consultores = [], isLoading: loadingUsers } = useActiveConsultores();
   const { data: openLeads = [], isLoading: loadingLeads } = useOpenLeads();
   const { data: openTasks = [], isLoading: loadingTasks } = useOpenTasks();
+  const { data: camposFiltered = {}, isLoading: loadingCampos } = useCamposAlteradosFiltered(fromStr, toStr);
 
   const { rows, p25, p50, p75 } = useMemo(() => {
     if (consultores.length === 0) return { rows: [], p25: 0, p50: 0, p75: 0 };
@@ -68,6 +77,10 @@ export function RankingPercentilBlock({ activities }: Props) {
     for (const a of activities) {
       if (EXCLUDED_CATEGORIES.has(a.category)) continue;
       acoesCount.set(a.user_id, (acoesCount.get(a.user_id) || 0) + a.activity_count);
+    }
+    for (const [uidStr, count] of Object.entries(camposFiltered)) {
+      const uid = Number(uidStr);
+      acoesCount.set(uid, (acoesCount.get(uid) || 0) + count);
     }
 
     const base = consultores.map((u) => {
@@ -99,9 +112,9 @@ export function RankingPercentilBlock({ activities }: Props) {
     });
 
     return { rows, p25: p25v, p50: p50v, p75: p75v };
-  }, [consultores, openLeads, activities]);
+  }, [consultores, openLeads, activities, camposFiltered]);
 
-  const loading = loadingUsers || loadingLeads || loadingTasks;
+  const loading = loadingUsers || loadingLeads || loadingTasks || loadingCampos;
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
