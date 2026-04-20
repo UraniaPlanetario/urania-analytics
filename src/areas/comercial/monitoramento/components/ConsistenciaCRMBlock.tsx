@@ -6,6 +6,7 @@ import {
   useClosedLeadsPeriodo,
   useOpenTasks,
   useCamposAlteradosFiltered,
+  useLeadsAtribuidosPeriodo,
 } from '../hooks/useConsistenciaData';
 import {
   UserActivity,
@@ -36,6 +37,7 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
   const { data: closedLeads = [], isLoading: loadingClosed } = useClosedLeadsPeriodo(fromStr, toStr);
   const { data: openTasks = [], isLoading: loadingTasks } = useOpenTasks();
   const { data: camposFiltered = {}, isLoading: loadingCampos } = useCamposAlteradosFiltered(fromStr, toStr);
+  const { data: leadsAtribuidos = {}, isLoading: loadingAtrib } = useLeadsAtribuidosPeriodo(fromStr, toStr);
 
   const rows = useMemo<ConsistenciaVendedor[]>(() => {
     if (consultores.length === 0) return [];
@@ -118,11 +120,13 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
         if (tasksBucket.leadsOverdueTask.has(lid)) atrasoFimFunil += 1;
       }
       const acoes = acoesPorVendedor.get(u.id) || 0;
-      const acoesPorLead = leadsBucket.total > 0 ? acoes / leadsBucket.total : 0;
+      const leadsPeriodo = leadsAtribuidos[u.id] || 0;
+      const acoesPorLead = leadsPeriodo > 0 ? acoes / leadsPeriodo : 0;
       out.push({
         user_id: u.id,
         user_name: u.name,
-        leads_abertos: leadsBucket.total,
+        leads_no_periodo: leadsPeriodo,
+        leads_abertos_atual: leadsBucket.total,
         leads_fechados_periodo: closedCount.get(u.id) || 0,
         tarefas_em_atraso: tasksBucket.overdue,
         sem_tarefa: semTarefa,
@@ -133,7 +137,7 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
       });
     }
     return out.sort((a, b) => b.acoes_por_lead - a.acoes_por_lead);
-  }, [consultores, openLeads, closedLeads, openTasks, activities, camposFiltered]);
+  }, [consultores, openLeads, closedLeads, openTasks, activities, camposFiltered, leadsAtribuidos]);
 
   const summary = useMemo(() => {
     const counts: Record<ClassificacaoCRM, number> = {
@@ -146,7 +150,7 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
     return counts;
   }, [rows]);
 
-  const loading = loadingUsers || loadingLeads || loadingClosed || loadingTasks || loadingCampos;
+  const loading = loadingUsers || loadingLeads || loadingClosed || loadingTasks || loadingCampos || loadingAtrib;
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -163,10 +167,11 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
           <div className="text-sm text-muted-foreground">
             <p className="font-medium text-foreground mb-1">Como o score é calculado</p>
             <p>
-              <strong>Score = Ações no período ÷ Leads abertos</strong>. Leads abertos = snapshot
-              atual de leads no pipeline <strong>Vendas WhatsApp</strong>, status "Em andamento"
-              (não fechados/perdidos/cancelados), atribuídos a Consultores Inbound ativos.
-              Classificação por faixas fixas:
+              <strong>Score = Ações no período ÷ Leads no período</strong>. "Leads no período" =
+              leads únicos em que o vendedor foi responsável em algum momento do intervalo
+              filtrado, no pipeline <strong>Vendas WhatsApp</strong> (reconstruído a partir de{' '}
+              <em>entity_responsible_changed</em>; um lead que trocou de dono conta para ambos —
+              dupla contagem intencional). Classificação por faixas fixas:
             </p>
             <ul className="mt-2 space-y-0.5">
               <li>
@@ -198,9 +203,9 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
               </li>
             </ul>
             <p className="mt-2 text-xs">
-              Tarefas em atraso, sem tarefa e atraso em fim de funil (Negociação, Geladeira, Venda
-              provável, Falar com Direção/Decisor) são <em>snapshot atual</em> — informativos, fora
-              do score.
+              "Leads Abertos (atual)", tarefas em atraso, sem tarefa e atraso em fim de funil
+              (Negociação, Geladeira, Venda provável, Falar com Direção/Decisor) são{' '}
+              <em>snapshot do momento atual</em> — informativos, fora do score.
             </p>
             <p className="mt-1 text-xs">
               Ações contadas: mensagens, movimentações, ligações, notas, tarefas e campos alterados
@@ -233,7 +238,8 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
           <thead>
             <tr className="border-b border-border text-muted-foreground font-medium">
               <th className="text-left py-2 px-3">Vendedor</th>
-              <th className="text-right py-2 px-3">Leads Abertos</th>
+              <th className="text-right py-2 px-3">Leads no Período</th>
+              <th className="text-right py-2 px-3">Abertos (atual)</th>
               <th className="text-right py-2 px-3">Fechados no Período</th>
               <th className="text-right py-2 px-3">Tarefas em Atraso</th>
               <th className="text-right py-2 px-3">Sem Tarefa</th>
@@ -251,7 +257,10 @@ export function ConsistenciaCRMBlock({ activities, dateRange }: Props) {
               >
                 <td className="py-2 px-3 text-foreground font-medium">{r.user_name}</td>
                 <td className="py-2 px-3 text-right text-foreground">
-                  {r.leads_abertos.toLocaleString('pt-BR')}
+                  {r.leads_no_periodo.toLocaleString('pt-BR')}
+                </td>
+                <td className="py-2 px-3 text-right text-foreground">
+                  {r.leads_abertos_atual.toLocaleString('pt-BR')}
                 </td>
                 <td className="py-2 px-3 text-right text-foreground">
                   {r.leads_fechados_periodo.toLocaleString('pt-BR')}

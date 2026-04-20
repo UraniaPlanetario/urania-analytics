@@ -3,9 +3,9 @@ import { Loader2, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine, LabelList } from 'recharts';
 import {
   useActiveConsultores,
-  useOpenLeads,
   useOpenTasks,
   useCamposAlteradosFiltered,
+  useLeadsAtribuidosPeriodo,
 } from '../hooks/useConsistenciaData';
 import { UserActivity } from '../types';
 
@@ -54,24 +54,12 @@ export function RankingPercentilBlock({ activities, dateRange }: Props) {
   const fromStr = toDateStr(dateRange.from);
   const toStr = toDateStr(dateRange.to);
   const { data: consultores = [], isLoading: loadingUsers } = useActiveConsultores();
-  const { data: openLeads = [], isLoading: loadingLeads } = useOpenLeads();
   const { data: openTasks = [], isLoading: loadingTasks } = useOpenTasks();
   const { data: camposFiltered = {}, isLoading: loadingCampos } = useCamposAlteradosFiltered(fromStr, toStr);
+  const { data: leadsAtribuidos = {}, isLoading: loadingAtrib } = useLeadsAtribuidosPeriodo(fromStr, toStr);
 
   const { rows, p25, p50, p75 } = useMemo(() => {
     if (consultores.length === 0) return { rows: [], p25: 0, p50: 0, p75: 0 };
-
-    const idByName = new Map<string, number>();
-    for (const u of consultores) idByName.set(u.name, u.id);
-
-    const leadsCount = new Map<number, number>();
-    for (const u of consultores) leadsCount.set(u.id, 0);
-    for (const l of openLeads) {
-      if (!l.vendedor) continue;
-      const uid = idByName.get(l.vendedor);
-      if (uid == null) continue;
-      leadsCount.set(uid, (leadsCount.get(uid) || 0) + 1);
-    }
 
     const acoesCount = new Map<number, number>();
     for (const a of activities) {
@@ -84,7 +72,7 @@ export function RankingPercentilBlock({ activities, dateRange }: Props) {
     }
 
     const base = consultores.map((u) => {
-      const leads = leadsCount.get(u.id) || 0;
+      const leads = leadsAtribuidos[u.id] || 0;
       const acoes = acoesCount.get(u.id) || 0;
       return {
         user_id: u.id,
@@ -112,9 +100,9 @@ export function RankingPercentilBlock({ activities, dateRange }: Props) {
     });
 
     return { rows, p25: p25v, p50: p50v, p75: p75v };
-  }, [consultores, openLeads, activities, camposFiltered]);
+  }, [consultores, activities, camposFiltered, leadsAtribuidos]);
 
-  const loading = loadingUsers || loadingLeads || loadingTasks || loadingCampos;
+  const loading = loadingUsers || loadingTasks || loadingCampos || loadingAtrib;
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">

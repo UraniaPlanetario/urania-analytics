@@ -104,6 +104,26 @@ export function useClosedLeadsPeriodo(dateFrom: string | null, dateTo: string | 
   });
 }
 
+export function useLeadsAtribuidosPeriodo(dateFrom: string | null, dateTo: string | null) {
+  return useQuery<Record<number, number>>({
+    queryKey: ['consistencia_leads_atribuidos', dateFrom, dateTo],
+    queryFn: async () => {
+      const from = dateFrom ? dateFrom + 'T00:00:00Z' : '1970-01-01T00:00:00Z';
+      const to = dateTo ? dateTo + 'T23:59:59Z' : '2999-12-31T23:59:59Z';
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('leads_atribuidos_por_user', { p_from: from, p_to: to });
+      if (error) throw error;
+      const counts: Record<number, number> = {};
+      for (const row of (data || []) as { user_id: number; leads: number }[]) {
+        counts[row.user_id] = Number(row.leads);
+      }
+      return counts;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useCamposAlteradosFiltered(dateFrom: string | null, dateTo: string | null) {
   return useQuery<Record<number, number>>({
     queryKey: ['consistencia_campos_filtered', dateFrom, dateTo],

@@ -44,7 +44,8 @@ export type ClassificacaoCRM = 'Boa' | 'Moderada' | 'Baixa' | 'Extremamente Baix
 export interface ConsistenciaVendedor {
   user_id: number;
   user_name: string;
-  leads_abertos: number;
+  leads_no_periodo: number;
+  leads_abertos_atual: number;
   leads_fechados_periodo: number;
   tarefas_em_atraso: number;
   sem_tarefa: number;
