@@ -5,6 +5,24 @@ import { useMemo } from 'react';
 
 const FUNIS_FECHADOS = ['Onboarding Escolas', 'Onboarding SME', 'Financeiro', 'Clientes - CS', 'Shopping Fechados'];
 
+export function useVendedoresAtivos() {
+  return useQuery<string[]>({
+    queryKey: ['vendedores_ativos'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .schema('bronze')
+        .from('kommo_users')
+        .select('name')
+        .eq('is_active', true)
+        .eq('group_name', 'Consultores Inbound')
+        .order('name');
+      if (error) throw error;
+      return (data || []).map((u: any) => u.name as string);
+    },
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
 async function fetchAllPaginated<T>(builder: any): Promise<T[]> {
   const all: T[] = [];
   let from = 0;

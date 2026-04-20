@@ -21,6 +21,7 @@ import {
   useLeadsVendedor,
   useTempoResposta,
   useAlteracoesCampos,
+  useVendedoresAtivos,
 } from '../hooks/useDesempenhoVendedor';
 import { VendedorFilters, normalizeUserName } from '../types';
 import { BlocoTempoResposta } from '../components/BlocoTempoResposta';
@@ -372,38 +373,35 @@ export default function DesempenhoVendedorDashboard() {
   const { data: leads = [], isLoading: loadingLeads, error: errorLeads } = useLeadsVendedor();
   const { data: mensagens = [], isLoading: loadingMensagens, error: errorMensagens } = useTempoResposta(dateFromISO, dateToISO);
   const { data: alteracoes = [], isLoading: loadingAlteracoes, error: errorAlteracoes } = useAlteracoesCampos(dateFromISO, dateToISO);
+  const { data: vendedoresAtivos = [] } = useVendedoresAtivos();
 
-  // Lista de vendedores disponíveis (dos leads)
+  // Lista de vendedores disponíveis = apenas ativos no Kommo
   const vendedoresDisponiveis = useMemo(() => {
-    const set = new Set<string>();
-    for (const l of leads) {
-      if (l.vendedor) set.add(l.vendedor);
-    }
-    return Array.from(set).sort();
-  }, [leads]);
+    return [...vendedoresAtivos].sort();
+  }, [vendedoresAtivos]);
 
-  // Filtra leads pelo filtro de vendedor e dateRange (aplicado no próprio bloco para fechamento/agendamento/cancelamento)
+  const ativosSet = useMemo(() => new Set(vendedoresAtivos), [vendedoresAtivos]);
+
+  // Filtra leads pelo filtro de vendedor (sempre só vendedores ativos, sem "Não atribuído")
   const filteredLeads = useMemo(() => {
-    let list = leads;
+    let list = leads.filter((l) => l.vendedor && ativosSet.has(l.vendedor));
     if (filters.vendedores.length > 0) {
       list = list.filter((l) => l.vendedor && filters.vendedores.includes(l.vendedor));
     }
     return list;
-  }, [leads, filters.vendedores]);
+  }, [leads, filters.vendedores, ativosSet]);
 
   // Tempo resposta filtrado por vendedor (via responder_user_name normalizado)
   const filteredMensagens = useMemo(() => {
-    if (filters.vendedores.length === 0) return mensagens;
-    const normSet = new Set(filters.vendedores.map((v) => normalizeUserName(v)));
-    return mensagens.filter((m) => normSet.has(normalizeUserName(m.responder_user_name)));
-  }, [mensagens, filters.vendedores]);
+    const baseSet = filters.vendedores.length > 0 ? new Set(filters.vendedores) : ativosSet;
+    return mensagens.filter((m) => m.responder_user_name && baseSet.has(m.responder_user_name));
+  }, [mensagens, filters.vendedores, ativosSet]);
 
-  // Alterações filtradas por vendedor (via criado_por normalizado)
+  // Alterações filtradas por vendedor (apenas vendedores ativos)
   const filteredAlteracoes = useMemo(() => {
-    if (filters.vendedores.length === 0) return alteracoes;
-    const normSet = new Set(filters.vendedores.map((v) => normalizeUserName(v)));
-    return alteracoes.filter((a) => normSet.has(normalizeUserName(a.criado_por)));
-  }, [alteracoes, filters.vendedores]);
+    const baseSet = filters.vendedores.length > 0 ? new Set(filters.vendedores) : ativosSet;
+    return alteracoes.filter((a) => a.criado_por && baseSet.has(a.criado_por));
+  }, [alteracoes, filters.vendedores, ativosSet]);
 
   // Leads filtrados por data (para blocos de fechamento/diárias — usam data_de_fechamento)
   const leadsFilteredByDate = useMemo(() => {

@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList, Legend } from 'recharts';
 import { LeadVendedor, formatNumber, formatPct } from '../types';
-import { filterLeadsFechados } from './BlocoFechamentos';
 
 const TOOLTIP_STYLE = {
   contentStyle: { backgroundColor: 'hsl(240, 10%, 10%)', border: 'none', borderRadius: 8 },
@@ -104,7 +103,27 @@ export function BlocoCancelamentos({ leads, dateFrom, dateTo }: Props) {
   );
 
   // Taxa de churn: total cancelamentos / total fechamentos nos meses originais dos leads cancelados
-  const allFechados = useMemo(() => filterLeadsFechados(leads), [leads]);
+  // Para pegar leads cancelados, precisamos incluir eles na base (não só status='Venda Fechada')
+  // Usar todos os leads que tem data_de_fechamento + vendedor + cancelado OR status Venda Fechada
+  const allFechados = useMemo(() => {
+    const FUNIS = ['Onboarding Escolas', 'Onboarding SME', 'Financeiro', 'Clientes - CS', 'Shopping Fechados'];
+    // Inclui leads em funis de fechamento E que têm data_de_fechamento + nome + vendedor preenchidos
+    const filtered = leads.filter((l) =>
+      l.funil_atual && FUNIS.includes(l.funil_atual) &&
+      l.nome_lead != null && l.nome_lead !== '' &&
+      l.data_de_fechamento != null &&
+      l.vendedor != null && l.vendedor !== ''
+    );
+    // Dedup por id_lead, mantendo passagem com data_de_fechamento mais recente
+    const latest = new Map<number, LeadVendedor>();
+    for (const l of filtered) {
+      const cur = latest.get(l.id_lead);
+      if (!cur || (l.data_de_fechamento || '') > (cur.data_de_fechamento || '')) {
+        latest.set(l.id_lead, l);
+      }
+    }
+    return Array.from(latest.values());
+  }, [leads]);
 
   const churnData = useMemo(() => {
     // Build set of months in which cancelled leads were originally closed
@@ -113,8 +132,9 @@ export function BlocoCancelamentos({ leads, dateFrom, dateTo }: Props) {
     for (const l of allFechados) fechadoById[l.id_lead] = l;
 
     for (const c of canceladosUnique) {
-      const origem = fechadoById[c.id_lead];
-      if (!origem || !origem.data_de_fechamento) continue;
+      // Pega a origem do cancelamento: ou o próprio cancelado se tiver data_fechamento, ou de allFechados
+      const origem = fechadoById[c.id_lead] || c;
+      if (!origem.data_de_fechamento) continue;
       const d = new Date(origem.data_de_fechamento);
       if (isNaN(d.getTime())) continue;
       const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
@@ -122,7 +142,7 @@ export function BlocoCancelamentos({ leads, dateFrom, dateTo }: Props) {
     }
 
     // Count fechamentos nos meses relevantes (denominador)
-    const fechamentosNoMesOrigem: Record<string, number> = {}; // por vendedor
+    const fechamentosNoMesOrigem: Record<string, number> = {};
     let totalFechamentosDenom = 0;
     for (const l of allFechados) {
       if (!l.data_de_fechamento) continue;

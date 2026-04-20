@@ -128,34 +128,46 @@ export function BlocoTempoResposta({ mensagens }: { mensagens: MensagemTempo[] }
         </table>
       </div>
 
-      {/* 1.4 Distribuição por faixa por vendedor */}
-      <div className="card-glass p-4 rounded-xl overflow-x-auto">
-        <h3 className="text-base font-semibold text-foreground mb-4">Distribuição por Faixa por Vendedor</h3>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-muted-foreground font-medium">
-              <th className="text-left py-2 px-3">Vendedor</th>
-              <th className="text-left py-2 px-3">Faixa</th>
-              <th className="text-right py-2 px-3">Mensagens</th>
-              <th className="text-right py-2 px-3">%</th>
-            </tr>
-          </thead>
-          <tbody>
-            {distByVendedor.map((r, i) => {
-              const isFirstOfGroup = i === 0 || distByVendedor[i - 1].vendedor !== r.vendedor;
-              return (
-                <tr key={`${r.vendedor}-${r.faixa}`} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                  <td className="py-2 px-3 text-foreground font-medium">
-                    {isFirstOfGroup ? r.vendedor : ''}
-                  </td>
-                  <td className="py-2 px-3 text-foreground">{r.faixa}</td>
-                  <td className="py-2 px-3 text-right text-foreground">{formatNumber(r.count)}</td>
-                  <td className="py-2 px-3 text-right text-foreground">{formatPct(r.pct)}</td>
-                </tr>
-              );
+      {/* 1.4 Distribuição por faixa por vendedor - barras empilhadas (%) */}
+      <div className="card-glass p-4 rounded-xl">
+        <h3 className="text-base font-semibold text-foreground mb-4">Distribuição por Faixa por Vendedor (%)</h3>
+        <ResponsiveContainer width="100%" height={Math.max(300, vendedorStats.length * 32)}>
+          <BarChart
+            data={vendedorStats.map((v) => {
+              const row: any = { vendedor: v.vendedor };
+              for (const f of FAIXAS_TEMPO) {
+                row[f] = v.total > 0 ? (v.faixaCounts[f] / v.total) * 100 : 0;
+              }
+              return row;
             })}
-          </tbody>
-        </table>
+            layout="vertical"
+            margin={{ left: 120, right: 20 }}
+            stackOffset="expand"
+          >
+            <XAxis
+              type="number"
+              stroke="hsl(240, 5%, 65%)"
+              tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+            />
+            <YAxis type="category" dataKey="vendedor" stroke="hsl(240, 5%, 65%)" width={115} tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 11 }} />
+            <Tooltip {...TOOLTIP_STYLE} formatter={(value: number) => [formatPct(value), 'Faixa']} />
+            {FAIXAS_TEMPO.map((f, idx) => {
+              const colors = ['hsl(142, 60%, 50%)', 'hsl(142, 50%, 40%)', 'hsl(45, 80%, 55%)', 'hsl(25, 80%, 55%)', 'hsl(0, 72%, 51%)'];
+              return <Bar key={f} dataKey={f} stackId="a" fill={colors[idx]} />;
+            })}
+          </BarChart>
+        </ResponsiveContainer>
+        <div className="flex flex-wrap gap-3 mt-3 justify-center">
+          {FAIXAS_TEMPO.map((f, idx) => {
+            const colors = ['hsl(142, 60%, 50%)', 'hsl(142, 50%, 40%)', 'hsl(45, 80%, 55%)', 'hsl(25, 80%, 55%)', 'hsl(0, 72%, 51%)'];
+            return (
+              <div key={f} className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded" style={{ backgroundColor: colors[idx] }} />
+                <span className="text-xs text-muted-foreground">{f}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

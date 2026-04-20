@@ -124,19 +124,20 @@ export function BlocoCamposAlterados({ alteracoes }: { alteracoes: AlteracaoCamp
             <tr className="border-b border-border text-muted-foreground font-medium">
               <th className="text-left py-2 px-3">Vendedor</th>
               <th className="text-right py-2 px-3">Total de Alterações</th>
-              <th className="text-right py-2 px-3">Média (por vendedor)</th>
+              <th className="text-right py-2 px-3">% do Total</th>
             </tr>
           </thead>
           <tbody>
-            {vendedorStats.map((v) => (
-              <tr key={v.vendedor} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                <td className="py-2 px-3 text-foreground font-medium">{v.vendedor}</td>
-                <td className="py-2 px-3 text-right text-foreground">{formatNumber(v.total)}</td>
-                <td className="py-2 px-3 text-right text-foreground">
-                  {mediaPorVendedor.toFixed(1).replace('.', ',')}
-                </td>
-              </tr>
-            ))}
+            {vendedorStats.map((v) => {
+              const pct = totalAlteracoes > 0 ? (v.total / totalAlteracoes) * 100 : 0;
+              return (
+                <tr key={v.vendedor} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                  <td className="py-2 px-3 text-foreground font-medium">{v.vendedor}</td>
+                  <td className="py-2 px-3 text-right text-foreground">{formatNumber(v.total)}</td>
+                  <td className="py-2 px-3 text-right text-foreground">{pct.toFixed(1).replace('.', ',')}%</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

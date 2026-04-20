@@ -114,10 +114,15 @@ export function BlocoFaturamento({ leads, dateFrom, dateTo }: Props) {
             <p className="text-xs text-muted-foreground mt-1">Filtro: data de fechamento</p>
           </div>
           <div className="card-glass p-4 rounded-xl text-center">
-            <p className="text-sm text-muted-foreground">Leads Fechados</p>
-            <p className="text-3xl font-bold text-foreground">{viewALeads.length.toLocaleString('pt-BR')}</p>
+            <p className="text-sm text-muted-foreground">Diárias Fechadas</p>
+            <p className="text-3xl font-bold text-foreground">
+              {viewALeads.reduce((s, l) => s + (parseInt(l.numero_de_diarias || '0', 10) || 0), 0).toLocaleString('pt-BR')}
+            </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Ticket médio: {viewALeads.length > 0 ? formatCurrency(viewATotal / viewALeads.length) : 'R$ 0,00'}
+              Ticket médio: {(() => {
+                const diarias = viewALeads.reduce((s, l) => s + (parseInt(l.numero_de_diarias || '0', 10) || 0), 0);
+                return diarias > 0 ? formatCurrency(viewATotal / diarias) : 'R$ 0,00';
+              })()}
             </p>
           </div>
         </div>
