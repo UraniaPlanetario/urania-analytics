@@ -35,21 +35,6 @@ export default function MonitoramentoDashboard() {
     to: filters.dateRange.to ?? new Date(),
   };
 
-  if (isLoading) return (
-    <div className="flex items-center justify-center py-20">
-      <Loader2 className="animate-spin text-primary" size={32} />
-    </div>
-  );
-
-  if (error) return (
-    <div className="flex items-center justify-center py-20">
-      <div className="card-glass p-8 text-center">
-        <p className="text-destructive font-medium">Erro ao carregar dados</p>
-        <p className="text-sm text-muted-foreground mt-2">{(error as Error).message}</p>
-      </div>
-    </div>
-  );
-
   return (
     <div>
       <div className="mb-4">
@@ -76,28 +61,41 @@ export default function MonitoramentoDashboard() {
       </div>
 
       <div className="max-w-6xl">
-        {activeSection === 'overview' && <OverviewBlock activities={filtered} />}
-        {activeSection === 'categories' && <UsersBlock activities={filtered} />}
-        {activeSection === 'user-detail' && (
-          <UserDetailBlock
-            activities={activities}
-            selectedUsers={filters.users}
-            dateRange={effectiveDateRange}
-          />
-        )}
-        {activeSection === 'consistencia' && (
-          <ConsistenciaCRMBlock
-            activities={activities}
-            selectedUsers={filters.users}
-            dateRange={effectiveDateRange}
-          />
-        )}
-        {activeSection === 'ranking' && (
-          <RankingPercentilBlock
-            activities={activities}
-            selectedUsers={filters.users}
-            dateRange={effectiveDateRange}
-          />
+        {error ? (
+          <div className="card-glass p-8 text-center">
+            <p className="text-destructive font-medium">Erro ao carregar dados</p>
+            <p className="text-sm text-muted-foreground mt-2">{(error as Error).message}</p>
+          </div>
+        ) : isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="animate-spin text-primary" size={32} />
+          </div>
+        ) : (
+          <>
+            {activeSection === 'overview' && <OverviewBlock activities={filtered} />}
+            {activeSection === 'categories' && <UsersBlock activities={filtered} />}
+            {activeSection === 'user-detail' && (
+              <UserDetailBlock
+                activities={activities}
+                selectedUsers={filters.users}
+                dateRange={effectiveDateRange}
+              />
+            )}
+            {activeSection === 'consistencia' && (
+              <ConsistenciaCRMBlock
+                activities={activities}
+                selectedUsers={filters.users}
+                dateRange={effectiveDateRange}
+              />
+            )}
+            {activeSection === 'ranking' && (
+              <RankingPercentilBlock
+                activities={activities}
+                selectedUsers={filters.users}
+                dateRange={effectiveDateRange}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

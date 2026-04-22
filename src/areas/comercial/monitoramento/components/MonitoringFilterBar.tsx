@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { useMemo, useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, subDays, subWeeks, isSameMonth, isSameDay, isWithinInterval, setMonth, setYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -186,6 +186,7 @@ function DateRangePicker({
   const [open, setOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('days');
   const [baseMonth, setBaseMonth] = useState(() => from ?? new Date());
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -209,6 +210,29 @@ function DateRangePicker({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  // Compute popover position — align right if would overflow viewport
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const compute = () => {
+      const rect = triggerRef.current!.getBoundingClientRect();
+      const popoverWidth = popoverRef.current?.offsetWidth ?? 500;
+      const vw = window.innerWidth;
+      const margin = 16;
+      let left = rect.left;
+      if (left + popoverWidth > vw - margin) {
+        left = Math.max(margin, vw - popoverWidth - margin);
+      }
+      setPopoverPos({ top: rect.bottom + 4, left });
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('scroll', compute, true);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('scroll', compute, true);
+    };
+  }, [open, viewMode]);
 
   const handleDayClick = useCallback((date: Date) => {
     if (!localFrom || (localFrom && localTo)) {
@@ -291,8 +315,8 @@ function DateRangePicker({
           ref={popoverRef}
           className="fixed p-4 rounded-xl shadow-2xl border border-border"
           style={{
-            top: triggerRef.current ? triggerRef.current.getBoundingClientRect().bottom + 4 : 0,
-            left: triggerRef.current ? triggerRef.current.getBoundingClientRect().left : 0,
+            top: popoverPos.top,
+            left: popoverPos.left,
             background: 'hsl(260, 30%, 10%)',
             zIndex: 9999,
           }}
