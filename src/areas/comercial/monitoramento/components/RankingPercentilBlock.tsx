@@ -103,6 +103,12 @@ export function RankingPercentilBlock({ activities, selectedUsers, dateRange }: 
     return { rows, p25: p25v, p50: p50v, p75: p75v };
   }, [consultores, activities, camposFiltered, leadsAtribuidos]);
 
+  const displayedRows = useMemo(() => {
+    if (selectedUsers.length === 0) return rows;
+    const set = new Set(selectedUsers);
+    return rows.filter((r) => set.has(r.user_name));
+  }, [rows, selectedUsers]);
+
   const loading = loadingUsers || loadingTasks || loadingCampos || loadingAtrib;
   if (loading) {
     return (
@@ -111,12 +117,6 @@ export function RankingPercentilBlock({ activities, selectedUsers, dateRange }: 
       </div>
     );
   }
-
-  const displayedRows = useMemo(() => {
-    if (selectedUsers.length === 0) return rows;
-    const set = new Set(selectedUsers);
-    return rows.filter((r) => set.has(r.user_name));
-  }, [rows, selectedUsers]);
 
   const chartData = displayedRows.map((r) => ({
     name: r.user_name,
