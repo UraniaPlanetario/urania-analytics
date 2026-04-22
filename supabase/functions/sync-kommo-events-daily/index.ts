@@ -52,14 +52,21 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const days = Number(url.searchParams.get("days") ?? "1");
     const maxPages = Number(url.searchParams.get("maxPages") ?? "500");
+    const fromParam = url.searchParams.get("from_ts");
+    const toParam = url.searchParams.get("to_ts");
 
-    console.log("=== Sync Kommo Events -> bronze (days=" + days + ") ===");
+    const nowTs = Math.floor(Date.now() / 1000);
+    const startTs = fromParam ? Number(fromParam) : nowTs - days * 24 * 60 * 60;
+    const endTs = toParam ? Number(toParam) : nowTs;
+
+    console.log(
+      "=== Sync Kommo Events -> bronze (from=" + startTs + ", to=" + endTs + ") ===",
+    );
 
     const usersCount = await syncUsers();
     console.log("Users: " + usersCount);
 
-    const now = Math.floor(Date.now() / 1000);
-    const startTs = now - days * 24 * 60 * 60;
+    const now = endTs;
 
     let totalUpserted = 0;
     let page = 1;
@@ -69,6 +76,7 @@ Deno.serve(async (req) => {
       const data = await kommoGet("/api/v4/events", {
         limit: "250",
         page: String(page),
+        "order[created_at]": "asc",
         "filter[created_at][from]": String(startTs),
         "filter[created_at][to]": String(now),
       });
