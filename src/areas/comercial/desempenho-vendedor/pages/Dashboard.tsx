@@ -20,9 +20,12 @@ import { Calendar, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import {
   useLeadsVendedor,
   useTempoResposta,
-  useAlteracoesCampos,
   useVendedoresAtivos,
 } from '../hooks/useDesempenhoVendedor';
+import {
+  useAlteracoesResumo,
+  useAlteracoesMensal,
+} from '../../desempenho-sdr/hooks/useDesempenhoSDR';
 import { VendedorFilters, normalizeUserName } from '../types';
 import { BlocoTempoResposta } from '../components/BlocoTempoResposta';
 import { BlocoCamposAlterados } from '../components/BlocoCamposAlterados';
@@ -372,7 +375,8 @@ export default function DesempenhoVendedorDashboard() {
 
   const { data: leads = [], isLoading: loadingLeads, error: errorLeads } = useLeadsVendedor();
   const { data: mensagens = [], isLoading: loadingMensagens, error: errorMensagens } = useTempoResposta(dateFromISO, dateToISO);
-  const { data: alteracoes = [], isLoading: loadingAlteracoes, error: errorAlteracoes } = useAlteracoesCampos(dateFromISO, dateToISO);
+  const { data: alteracoesResumo = [], isLoading: loadingAltResumo, error: errorAltResumo } = useAlteracoesResumo(dateFromISO, dateToISO);
+  const { data: alteracoesMensal = [], isLoading: loadingAltMensal, error: errorAltMensal } = useAlteracoesMensal(dateFromISO, dateToISO);
   const { data: vendedoresAtivos = [] } = useVendedoresAtivos();
 
   // Lista de vendedores disponíveis = apenas ativos no Kommo
@@ -397,11 +401,16 @@ export default function DesempenhoVendedorDashboard() {
     return mensagens.filter((m) => m.responder_user_name && baseSet.has(m.responder_user_name));
   }, [mensagens, filters.vendedores, ativosSet]);
 
-  // Alterações filtradas por vendedor (apenas vendedores ativos)
-  const filteredAlteracoes = useMemo(() => {
+  // Alterações (agregadas via RPC) filtradas por vendedor (apenas vendedores ativos)
+  const filteredAlteracoesResumo = useMemo(() => {
     const baseSet = filters.vendedores.length > 0 ? new Set(filters.vendedores) : ativosSet;
-    return alteracoes.filter((a) => a.criado_por && baseSet.has(a.criado_por));
-  }, [alteracoes, filters.vendedores, ativosSet]);
+    return alteracoesResumo.filter((r) => r.user_name && baseSet.has(r.user_name));
+  }, [alteracoesResumo, filters.vendedores, ativosSet]);
+
+  const filteredAlteracoesMensal = useMemo(() => {
+    const baseSet = filters.vendedores.length > 0 ? new Set(filters.vendedores) : ativosSet;
+    return alteracoesMensal.filter((r) => r.user_name && baseSet.has(r.user_name));
+  }, [alteracoesMensal, filters.vendedores, ativosSet]);
 
   // Leads filtrados por data (para blocos de fechamento/diárias — usam data_de_fechamento)
   const leadsFilteredByDate = useMemo(() => {
@@ -441,8 +450,8 @@ export default function DesempenhoVendedorDashboard() {
 
   const hasFilters = filters.vendedores.length > 0 || filters.dateRange.from || filters.dateRange.to;
 
-  const isLoading = loadingLeads || loadingMensagens || loadingAlteracoes;
-  const error = errorLeads || errorMensagens || errorAlteracoes;
+  const isLoading = loadingLeads || loadingMensagens || loadingAltResumo || loadingAltMensal;
+  const error = errorLeads || errorMensagens || errorAltResumo || errorAltMensal;
 
   if (isLoading) {
     return (
@@ -550,7 +559,7 @@ export default function DesempenhoVendedorDashboard() {
 
       <div className="max-w-6xl">
         {activeTab === 'tempo' && <BlocoTempoResposta mensagens={filteredMensagens} />}
-        {activeTab === 'campos' && <BlocoCamposAlterados alteracoes={filteredAlteracoes} />}
+        {activeTab === 'campos' && <BlocoCamposAlterados resumo={filteredAlteracoesResumo} mensal={filteredAlteracoesMensal} />}
         {activeTab === 'fechamentos' && <BlocoFechamentos leads={leadsFilteredByDate} />}
         {activeTab === 'diarias' && <BlocoDiarias leads={leadsFilteredByDate} />}
         {activeTab === 'faturamento' && (

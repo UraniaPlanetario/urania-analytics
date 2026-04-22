@@ -22,7 +22,8 @@ import {
   useMetasSDR,
   useMultiplicadores,
   useMensagensSDR,
-  useAlteracoesSDR,
+  useAlteracoesResumo,
+  useAlteracoesDiaria,
   useMovimentosSDR,
 } from '../hooks/useDesempenhoSDR';
 import { SDRFilters } from '../types';
@@ -455,11 +456,8 @@ export default function DesempenhoSDRDashboard() {
     isLoading: loadingMensagens,
     error: errorMensagens,
   } = useMensagensSDR(dateFromISO, dateToISO);
-  const {
-    data: alteracoes = [],
-    isLoading: loadingAlteracoes,
-    error: errorAlteracoes,
-  } = useAlteracoesSDR(dateFromISO, dateToISO);
+  const { data: altResumo = [], isLoading: loadingAltResumo, error: errorAltResumo } = useAlteracoesResumo(dateFromISO, dateToISO);
+  const { data: altDiaria = [], isLoading: loadingAltDiaria, error: errorAltDiaria } = useAlteracoesDiaria(dateFromISO, dateToISO);
   const {
     data: movimentos = [],
     isLoading: loadingMovimentos,
@@ -471,10 +469,11 @@ export default function DesempenhoSDRDashboard() {
     loadingMetas ||
     loadingMults ||
     loadingMensagens ||
-    loadingAlteracoes ||
+    loadingAltResumo ||
+    loadingAltDiaria ||
     loadingMovimentos;
   const error =
-    errorSdrs || errorMetas || errorMults || errorMensagens || errorAlteracoes || errorMovimentos;
+    errorSdrs || errorMetas || errorMults || errorMensagens || errorAltResumo || errorAltDiaria || errorMovimentos;
 
   // Lista de SDRs disponíveis (apenas ativos)
   const sdrsDisponiveis = useMemo(
@@ -642,7 +641,7 @@ export default function DesempenhoSDRDashboard() {
         {activeTab === 'geral' && (
           <Bloco1Geral
             mensagens={mensagens}
-            alteracoes={alteracoes}
+            alteracoesResumo={altResumo}
             movimentos={movimentos}
             sdrs={filteredSdrs}
             metas={metas}
@@ -663,7 +662,8 @@ export default function DesempenhoSDRDashboard() {
         )}
         {activeTab === 'campos' && (
           <Bloco4Campos
-            alteracoes={alteracoes}
+            resumo={altResumo}
+            diaria={altDiaria}
             sdrs={filteredSdrs}
             metas={metas}
             dateFrom={dateFrom}

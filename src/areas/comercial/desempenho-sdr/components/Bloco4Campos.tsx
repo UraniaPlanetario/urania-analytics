@@ -13,50 +13,49 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from 'recharts';
-import { AlteracaoSDR, SDR, MetaSDR, formatNumber } from '../types';
+import { SDR, MetaSDR, formatNumber } from '../types';
+import type { AlteracaoResumoRow, AlteracaoDiariaRow } from '../hooks/useDesempenhoSDR';
 import {
   TOOLTIP_STYLE,
   COLORS,
   SERIES_COLORS,
-  filterToSDRs,
   getActiveSdrs,
-  toLocalDateKey,
   toWeekKey,
   datesBetween,
   shortDay,
 } from './_helpers';
 
 interface Props {
-  alteracoes: AlteracaoSDR[];
+  resumo: AlteracaoResumoRow[];
+  diaria: AlteracaoDiariaRow[];
   sdrs: SDR[];
   metas: MetaSDR[];
   dateFrom: Date;
   dateTo: Date;
 }
 
-export function Bloco4Campos({ alteracoes, sdrs, metas, dateFrom, dateTo }: Props) {
+export function Bloco4Campos({ resumo, diaria, sdrs, metas, dateFrom, dateTo }: Props) {
   const sdrNames = useMemo(() => new Set(sdrs.map((s) => s.nome)), [sdrs]);
 
-  const filtered = useMemo(
-    () => filterToSDRs(alteracoes, sdrNames, (a) => a.criado_por),
-    [alteracoes, sdrNames],
+  // Filtra agregados aos SDRs do dim_sdrs
+  const resumoSDR = useMemo(
+    () => resumo.filter((r) => r.user_name && sdrNames.has(r.user_name)),
+    [resumo, sdrNames],
+  );
+  const diariaSDR = useMemo(
+    () => diaria.filter((d) => d.user_name && sdrNames.has(d.user_name)),
+    [diaria, sdrNames],
   );
 
-  // 4.1 — Média diária (total / dias úteis com alteração)
+  // 4.1 — Média diária (total do time / dias com alteração)
   const mediaDiariaKpi = useMemo(() => {
-    const diasComAlt = new Set<string>();
-    for (const a of filtered) {
-      const d = new Date(a.data_criacao);
-      const dow = d.getDay();
-      if (dow === 0 || dow === 6) continue;
-      diasComAlt.add(toLocalDateKey(d));
-    }
-    const total = filtered.length;
-    const n = diasComAlt.size;
-    return { total, dias: n, media: n > 0 ? total / n : 0 };
-  }, [filtered]);
+    const total = resumoSDR.reduce((s, r) => s + r.total, 0);
+    const diasSet = new Set<string>();
+    for (const d of diariaSDR) diasSet.add(d.dia);
+    const dias = diasSet.size;
+    return { total, dias, media: dias > 0 ? total / dias : 0 };
+  }, [resumoSDR, diariaSDR]);
 
-  // Meta global diária = soma das meta_campos_diarios dos SDRs ativos no período
   const metaGlobalDiaria = useMemo(() => {
     const ativos = getActiveSdrs(sdrs, dateFrom, dateTo);
     const metasPorNivel = new Map(metas.map((m) => [m.nivel, m]));
@@ -66,108 +65,90 @@ export function Bloco4Campos({ alteracoes, sdrs, metas, dateFrom, dateTo }: Prop
     }, 0);
   }, [sdrs, metas, dateFrom, dateTo]);
 
-  // 4.2 — Total diário
+  // 4.2 — Total diário (soma de todos os SDRs por dia)
   const totalDiario = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const a of filtered) {
-      const key = toLocalDateKey(new Date(a.data_criacao));
-      counts[key] = (counts[key] || 0) + 1;
+    for (const d of diariaSDR) {
+      counts[d.dia] = (counts[d.dia] || 0) + d.total;
     }
     return datesBetween(dateFrom, dateTo).map((key) => ({
       date: key,
       label: shortDay(key),
       count: counts[key] || 0,
     }));
-  }, [filtered, dateFrom, dateTo]);
+  }, [diariaSDR, dateFrom, dateTo]);
 
-  // 4.3 — Média semanal por SDR (top 8)
+  // 4.3 — Média semanal por SDR (top 8 por volume total no período)
   const mediaSemanalPorSdr = useMemo(() => {
-    const map: Record<string, Record<string, number>> = {};
-    const weekdaysPerWeek: Record<string, Set<string>> = {};
-    for (const a of filtered) {
-      const d = new Date(a.data_criacao);
-      const dow = d.getDay();
-      if (dow === 0 || dow === 6) continue;
-      const week = toWeekKey(d);
-      const name = a.criado_por!;
-      if (!map[week]) map[week] = {};
-      map[week][name] = (map[week][name] || 0) + 1;
-      if (!weekdaysPerWeek[week]) weekdaysPerWeek[week] = new Set();
-      weekdaysPerWeek[week].add(toLocalDateKey(d));
-    }
     const totalPorSdr: Record<string, number> = {};
-    for (const a of filtered) {
-      const name = a.criado_por!;
-      totalPorSdr[name] = (totalPorSdr[name] || 0) + 1;
+    for (const r of resumoSDR) {
+      if (!r.user_name) continue;
+      totalPorSdr[r.user_name] = (totalPorSdr[r.user_name] || 0) + r.total;
     }
     const top8 = Object.entries(totalPorSdr)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map(([n]) => n);
+    const top8Set = new Set(top8);
 
-    const weeks = Object.keys(map).sort();
+    const weekSdrMap: Record<string, Record<string, number>> = {};
+    const weekDays: Record<string, Set<string>> = {};
+    for (const d of diariaSDR) {
+      if (!d.user_name || !top8Set.has(d.user_name)) continue;
+      const [y, m, day] = d.dia.split('-').map(Number);
+      const date = new Date(y, m - 1, day);
+      const dow = date.getDay();
+      if (dow === 0 || dow === 6) continue;
+      const week = toWeekKey(date);
+      if (!weekSdrMap[week]) weekSdrMap[week] = {};
+      weekSdrMap[week][d.user_name] = (weekSdrMap[week][d.user_name] || 0) + d.total;
+      if (!weekDays[week]) weekDays[week] = new Set();
+      weekDays[week].add(d.dia);
+    }
+
+    const weeks = Object.keys(weekSdrMap).sort();
     const rows = weeks.map((week) => {
       const row: Record<string, any> = { week };
-      const dias = weekdaysPerWeek[week]?.size || 1;
+      const dias = weekDays[week]?.size || 1;
       for (const sdr of top8) {
-        row[sdr] = (map[week][sdr] || 0) / dias;
+        row[sdr] = (weekSdrMap[week][sdr] || 0) / dias;
       }
       return row;
     });
     return { rows, sdrs: top8 };
-  }, [filtered]);
+  }, [resumoSDR, diariaSDR]);
 
   // 4.4 — Média diária por SDR
   const mediaDiariaPorSdr = useMemo(() => {
-    const totalPorSdr: Record<string, number> = {};
-    const diasPorSdr: Record<string, Set<string>> = {};
-    for (const a of filtered) {
-      const d = new Date(a.data_criacao);
-      const dow = d.getDay();
-      if (dow === 0 || dow === 6) continue;
-      const name = a.criado_por!;
-      totalPorSdr[name] = (totalPorSdr[name] || 0) + 1;
-      if (!diasPorSdr[name]) diasPorSdr[name] = new Set();
-      diasPorSdr[name].add(toLocalDateKey(d));
-    }
-    return Object.keys(totalPorSdr)
-      .map((sdr) => ({
-        sdr,
-        media: diasPorSdr[sdr].size > 0 ? totalPorSdr[sdr] / diasPorSdr[sdr].size : 0,
+    return resumoSDR
+      .filter((r) => r.user_name)
+      .map((r) => ({
+        sdr: r.user_name!,
+        media: r.dias_com_alt > 0 ? r.total / r.dias_com_alt : 0,
       }))
       .sort((a, b) => b.media - a.media);
-  }, [filtered]);
+  }, [resumoSDR]);
 
-  // 4.5 — Média por lead por SDR (lead_id distinct)
+  // 4.5 — Média por lead por SDR
   const mediaPorLeadPorSdr = useMemo(() => {
-    const sdrData: Record<string, { total: number; leads: Set<number> }> = {};
-    for (const a of filtered) {
-      const name = a.criado_por!;
-      if (!sdrData[name]) sdrData[name] = { total: 0, leads: new Set() };
-      sdrData[name].total += 1;
-      if (a.lead_id != null) sdrData[name].leads.add(a.lead_id);
-    }
-    return Object.entries(sdrData)
-      .map(([sdr, d]) => ({
-        sdr,
-        media: d.leads.size > 0 ? d.total / d.leads.size : 0,
+    return resumoSDR
+      .filter((r) => r.user_name)
+      .map((r) => ({
+        sdr: r.user_name!,
+        media: r.leads_distintos > 0 ? r.total / r.leads_distintos : 0,
       }))
       .sort((a, b) => b.media - a.media);
-  }, [filtered]);
+  }, [resumoSDR]);
 
   // 4.6 — Total por SDR
   const totalPorSdr = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const a of filtered) {
-      const name = a.criado_por!;
-      map[name] = (map[name] || 0) + 1;
-    }
-    return Object.entries(map)
-      .map(([sdr, total]) => ({ sdr, total }))
+    return resumoSDR
+      .filter((r) => r.user_name)
+      .map((r) => ({ sdr: r.user_name!, total: r.total }))
       .sort((a, b) => b.total - a.total);
-  }, [filtered]);
+  }, [resumoSDR]);
 
-  if (filtered.length === 0) {
+  if (resumoSDR.length === 0) {
     return (
       <div className="card-glass p-8 rounded-xl text-center">
         <p className="text-sm text-muted-foreground">
@@ -179,7 +160,6 @@ export function Bloco4Campos({ alteracoes, sdrs, metas, dateFrom, dateTo }: Prop
 
   return (
     <div className="space-y-6">
-      {/* 4.1 KPI */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Média Diária</p>
@@ -202,7 +182,6 @@ export function Bloco4Campos({ alteracoes, sdrs, metas, dateFrom, dateTo }: Prop
         </div>
       </div>
 
-      {/* 4.2 Line chart total diário */}
       <div className="card-glass p-4 rounded-xl">
         <h3 className="text-base font-semibold text-foreground mb-4">Total Diário de Alterações</h3>
         <ResponsiveContainer width="100%" height={300}>
@@ -242,7 +221,6 @@ export function Bloco4Campos({ alteracoes, sdrs, metas, dateFrom, dateTo }: Prop
         </ResponsiveContainer>
       </div>
 
-      {/* 4.3 Bar chart agrupado vertical */}
       <div className="card-glass p-4 rounded-xl">
         <h3 className="text-base font-semibold text-foreground mb-4">
           Média Semanal por SDR (Top 8)
@@ -279,7 +257,6 @@ export function Bloco4Campos({ alteracoes, sdrs, metas, dateFrom, dateTo }: Prop
         </ResponsiveContainer>
       </div>
 
-      {/* 4.4 */}
       <div className="card-glass p-4 rounded-xl">
         <h3 className="text-base font-semibold text-foreground mb-4">Média Diária por SDR</h3>
         <ResponsiveContainer width="100%" height={Math.max(240, mediaDiariaPorSdr.length * 36)}>
@@ -317,7 +294,6 @@ export function Bloco4Campos({ alteracoes, sdrs, metas, dateFrom, dateTo }: Prop
         </ResponsiveContainer>
       </div>
 
-      {/* 4.5 */}
       <div className="card-glass p-4 rounded-xl">
         <h3 className="text-base font-semibold text-foreground mb-4">
           Alterações por Lead por SDR
@@ -357,7 +333,6 @@ export function Bloco4Campos({ alteracoes, sdrs, metas, dateFrom, dateTo }: Prop
         </ResponsiveContainer>
       </div>
 
-      {/* 4.6 */}
       <div className="card-glass p-4 rounded-xl">
         <h3 className="text-base font-semibold text-foreground mb-4">Total de Alterações por SDR</h3>
         <ResponsiveContainer width="100%" height={Math.max(240, totalPorSdr.length * 36)}>

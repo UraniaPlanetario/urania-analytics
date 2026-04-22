@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { AlteracaoCampo, normalizeUserName, formatNumber } from '../types';
+import { normalizeUserName, formatNumber } from '../types';
+import type { AlteracaoResumoRow, AlteracaoMensalRow } from '../../desempenho-sdr/hooks/useDesempenhoSDR';
 
 const TOOLTIP_STYLE = {
   contentStyle: { backgroundColor: 'hsl(240, 10%, 10%)', border: 'none', borderRadius: 8 },
@@ -27,30 +28,33 @@ interface VendedorStat {
   leadsDistintos: number;
 }
 
-export function BlocoCamposAlterados({ alteracoes }: { alteracoes: AlteracaoCampo[] }) {
-  const filtered = useMemo(() => alteracoes.filter((a) => a.dentro_janela), [alteracoes]);
+interface Props {
+  resumo: AlteracaoResumoRow[];
+  mensal: AlteracaoMensalRow[];
+}
 
+export function BlocoCamposAlterados({ resumo, mensal }: Props) {
   const vendedorStats = useMemo<VendedorStat[]>(() => {
-    const map: Record<string, { total: number; dias: Set<string>; leads: Set<number> }> = {};
-    for (const a of filtered) {
-      const v = normalizeUserName(a.criado_por);
+    // Agrega por nome normalizado (pode mergear "Perla" e "Perla Nogueira")
+    const map: Record<string, { total: number; dias: number; leads: number }> = {};
+    for (const r of resumo) {
+      const v = normalizeUserName(r.user_name);
       if (!map[v]) {
-        map[v] = { total: 0, dias: new Set(), leads: new Set() };
+        map[v] = { total: 0, dias: 0, leads: 0 };
       }
-      map[v].total += 1;
-      const date = a.data_criacao?.slice(0, 10);
-      if (date) map[v].dias.add(date);
-      if (a.lead_id != null) map[v].leads.add(a.lead_id);
+      map[v].total += r.total;
+      map[v].dias += r.dias_com_alt;
+      map[v].leads += r.leads_distintos;
     }
     return Object.entries(map)
       .map(([vendedor, v]) => ({
         vendedor,
         total: v.total,
-        diasComAlteracao: v.dias.size,
-        leadsDistintos: v.leads.size,
+        diasComAlteracao: v.dias,
+        leadsDistintos: v.leads,
       }))
       .sort((a, b) => b.total - a.total);
-  }, [filtered]);
+  }, [resumo]);
 
   const totalAlteracoes = vendedorStats.reduce((s, v) => s + v.total, 0);
   const numVendedores = vendedorStats.length;
@@ -61,37 +65,34 @@ export function BlocoCamposAlterados({ alteracoes }: { alteracoes: AlteracaoCamp
   const mediaDiaria = totalDias > 0 ? totalAlteracoes / totalDias : 0;
   const mediaPorLead = totalLeads > 0 ? totalAlteracoes / totalLeads : 0;
 
-  // 2.4 Monthly bar chart (grouped)
   const topVendedores = useMemo(() => vendedorStats.slice(0, 8).map((v) => v.vendedor), [vendedorStats]);
 
   const monthlyData = useMemo(() => {
+    // mensal vem do RPC: {user_id, user_name, mes_key: 'YYYY-MM', total}
+    // Agrupa por mes_key e normaliza nome, só top 8 vendedores
+    const topSet = new Set(topVendedores);
     const map: Record<string, Record<string, number>> = {};
-    for (const a of filtered) {
-      const v = normalizeUserName(a.criado_por);
-      if (!topVendedores.includes(v)) continue;
-      const d = a.data_criacao ? new Date(a.data_criacao) : null;
-      if (!d || isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
-      if (!map[key]) map[key] = {};
-      map[key][v] = (map[key][v] || 0) + 1;
+    for (const m of mensal) {
+      const v = normalizeUserName(m.user_name);
+      if (!topSet.has(v)) continue;
+      if (!map[m.mes_key]) map[m.mes_key] = {};
+      map[m.mes_key][v] = (map[m.mes_key][v] || 0) + m.total;
     }
-    // Compute months and also per-vendedor monthly average
     const monthKeys = Object.keys(map).sort();
     return monthKeys.map((key) => {
       const [year, month] = key.split('-');
       const row: Record<string, number | string> = {
-        name: `${MONTH_LABELS[Number(month)]}/${year.slice(2)}`,
+        name: `${MONTH_LABELS[Number(month) - 1]}/${year.slice(2)}`,
       };
       for (const v of topVendedores) {
         row[v] = map[key][v] || 0;
       }
       return row;
     });
-  }, [filtered, topVendedores]);
+  }, [mensal, topVendedores]);
 
   return (
     <div className="space-y-6">
-      {/* 2.1 + 2.2 + 2.3 KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Média por Vendedor</p>
@@ -116,7 +117,6 @@ export function BlocoCamposAlterados({ alteracoes }: { alteracoes: AlteracaoCamp
         </div>
       </div>
 
-      {/* 2.1 Tabela Total por Vendedor */}
       <div className="card-glass p-4 rounded-xl overflow-x-auto">
         <h3 className="text-base font-semibold text-foreground mb-4">Total por Vendedor</h3>
         <table className="w-full text-sm">
@@ -142,7 +142,6 @@ export function BlocoCamposAlterados({ alteracoes }: { alteracoes: AlteracaoCamp
         </table>
       </div>
 
-      {/* 2.2 Tabela Média Diária */}
       <div className="card-glass p-4 rounded-xl overflow-x-auto">
         <h3 className="text-base font-semibold text-foreground mb-4">Média Diária por Vendedor</h3>
         <table className="w-full text-sm">
@@ -170,7 +169,6 @@ export function BlocoCamposAlterados({ alteracoes }: { alteracoes: AlteracaoCamp
         </table>
       </div>
 
-      {/* 2.3 Tabela Média por Lead */}
       <div className="card-glass p-4 rounded-xl overflow-x-auto">
         <h3 className="text-base font-semibold text-foreground mb-4">Média de Alterações por Lead</h3>
         <table className="w-full text-sm">
@@ -198,7 +196,6 @@ export function BlocoCamposAlterados({ alteracoes }: { alteracoes: AlteracaoCamp
         </table>
       </div>
 
-      {/* 2.4 Gráfico agrupado mensal */}
       <div className="card-glass p-4 rounded-xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-foreground">Alterações Mensais por Vendedor</h3>

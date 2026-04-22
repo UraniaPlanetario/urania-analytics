@@ -128,6 +128,152 @@ export function useAlteracoesSDR(dateFrom: string | null, dateTo: string | null)
   });
 }
 
+// ============================================================================
+// RPCs agregadas (Fase 2 de performance) — substituem queries paginadas pesadas
+// ============================================================================
+
+export interface AlteracaoResumoRow {
+  user_id: number;
+  user_name: string | null;
+  total: number;
+  dias_com_alt: number;
+  leads_distintos: number;
+}
+
+export function useAlteracoesResumo(dateFrom: string | null, dateTo: string | null) {
+  return useQuery<AlteracaoResumoRow[]>({
+    queryKey: ['alteracoes_resumo_por_user', dateFrom, dateTo],
+    queryFn: async () => {
+      const from = dateFrom ? dateFrom + 'T00:00:00Z' : '1970-01-01T00:00:00Z';
+      const to = dateTo ? dateTo + 'T23:59:59Z' : '2999-12-31T23:59:59Z';
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('alteracoes_resumo_por_user', { p_from: from, p_to: to });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        user_id: Number(r.user_id),
+        user_name: r.user_name,
+        total: Number(r.total),
+        dias_com_alt: Number(r.dias_com_alt),
+        leads_distintos: Number(r.leads_distintos),
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export interface AlteracaoMensalRow {
+  user_id: number;
+  user_name: string | null;
+  mes_key: string; // 'YYYY-MM'
+  total: number;
+}
+
+export function useAlteracoesMensal(dateFrom: string | null, dateTo: string | null) {
+  return useQuery<AlteracaoMensalRow[]>({
+    queryKey: ['alteracoes_mensal_por_user', dateFrom, dateTo],
+    queryFn: async () => {
+      const from = dateFrom ? dateFrom + 'T00:00:00Z' : '1970-01-01T00:00:00Z';
+      const to = dateTo ? dateTo + 'T23:59:59Z' : '2999-12-31T23:59:59Z';
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('alteracoes_mensal_por_user', { p_from: from, p_to: to });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        user_id: Number(r.user_id),
+        user_name: r.user_name,
+        mes_key: r.mes_key,
+        total: Number(r.total),
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export interface AlteracaoDiariaRow {
+  user_id: number;
+  user_name: string | null;
+  dia: string; // YYYY-MM-DD
+  total: number;
+}
+
+export function useAlteracoesDiaria(dateFrom: string | null, dateTo: string | null) {
+  return useQuery<AlteracaoDiariaRow[]>({
+    queryKey: ['alteracoes_diaria_por_user', dateFrom, dateTo],
+    queryFn: async () => {
+      const from = dateFrom ? dateFrom + 'T00:00:00Z' : '1970-01-01T00:00:00Z';
+      const to = dateTo ? dateTo + 'T23:59:59Z' : '2999-12-31T23:59:59Z';
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('alteracoes_diaria_por_user', { p_from: from, p_to: to });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        user_id: Number(r.user_id),
+        user_name: r.user_name,
+        dia: r.dia,
+        total: Number(r.total),
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export interface TempoRespostaFaixaRow {
+  user_id: number;
+  user_name: string | null;
+  faixa: string;
+  count: number;
+}
+
+export function useTempoRespostaFaixa(dateFrom: string | null, dateTo: string | null) {
+  return useQuery<TempoRespostaFaixaRow[]>({
+    queryKey: ['tempo_resposta_por_user_faixa', dateFrom, dateTo],
+    queryFn: async () => {
+      const from = dateFrom ? dateFrom + 'T00:00:00Z' : '1970-01-01T00:00:00Z';
+      const to = dateTo ? dateTo + 'T23:59:59Z' : '2999-12-31T23:59:59Z';
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('tempo_resposta_por_user_faixa', { p_from: from, p_to: to });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        user_id: Number(r.user_id),
+        user_name: r.user_name,
+        faixa: r.faixa,
+        count: Number(r.count),
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export interface MovQualifRow {
+  kind: 'recebidos_time' | 'qualificados_user';
+  user_id: number | null;
+  user_name: string | null;
+  leads: number;
+}
+
+export function useMovimentosQualificacao(dateFrom: string | null, dateTo: string | null) {
+  return useQuery<MovQualifRow[]>({
+    queryKey: ['movimentos_qualificacao_resumo', dateFrom, dateTo],
+    queryFn: async () => {
+      const from = dateFrom ? dateFrom + 'T00:00:00Z' : '1970-01-01T00:00:00Z';
+      const to = dateTo ? dateTo + 'T23:59:59Z' : '2999-12-31T23:59:59Z';
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('movimentos_qualificacao_resumo', { p_from: from, p_to: to });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        kind: r.kind,
+        user_id: r.user_id != null ? Number(r.user_id) : null,
+        user_name: r.user_name,
+        leads: Number(r.leads),
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useMovimentosSDR(dateFrom: string | null, dateTo: string | null) {
   return useQuery<MovimentoLead[]>({
     queryKey: ['sdr_movimentos', dateFrom, dateTo],

@@ -11,7 +11,6 @@ import {
 } from 'recharts';
 import {
   MensagemSDR,
-  AlteracaoSDR,
   MovimentoLead,
   SDR,
   MetaSDR,
@@ -24,11 +23,12 @@ import {
   formatCurrency,
   isQualificadoSDRById,
 } from '../types';
+import type { AlteracaoResumoRow } from '../hooks/useDesempenhoSDR';
 import { TOOLTIP_STYLE, COLORS, getActiveSdrs, toLocalDateKey } from './_helpers';
 
 interface Props {
   mensagens: MensagemSDR[];
-  alteracoes: AlteracaoSDR[];
+  alteracoesResumo: AlteracaoResumoRow[];
   movimentos: MovimentoLead[];
   sdrs: SDR[];
   metas: MetaSDR[];
@@ -55,7 +55,7 @@ interface SdrPerformance {
 
 export function Bloco1Geral({
   mensagens,
-  alteracoes,
+  alteracoesResumo,
   movimentos,
   sdrs,
   metas,
@@ -101,18 +101,11 @@ export function Bloco1Geral({
       }
       const mediaMsg = diasMsg.size > 0 ? totalMsg / diasMsg.size : 0;
 
-      // Alterações: média diária
-      const diasAlt = new Set<string>();
-      let totalAlt = 0;
-      for (const a of alteracoes) {
-        if (a.criado_por !== sdr.nome) continue;
-        const d = new Date(a.data_criacao);
-        const dow = d.getDay();
-        if (dow === 0 || dow === 6) continue;
-        diasAlt.add(toLocalDateKey(d));
-        totalAlt += 1;
-      }
-      const mediaAlt = diasAlt.size > 0 ? totalAlt / diasAlt.size : 0;
+      // Alterações: média diária — vem do resumo agregado (mais rápido)
+      const resumoSdr = alteracoesResumo.find((r) => r.user_name === sdr.nome);
+      const totalAlt = resumoSdr?.total ?? 0;
+      const diasAltCount = resumoSdr?.dias_com_alt ?? 0;
+      const mediaAlt = diasAltCount > 0 ? totalAlt / diasAltCount : 0;
 
       // Conversão: leads qualificados por esse SDR / leads recebidos global
       const qualificadosSdr = new Set<number>();
@@ -156,7 +149,7 @@ export function Bloco1Geral({
         comissao,
       };
     });
-  }, [mensagens, alteracoes, movimentos, sdrs, metas, multiplicadores, dateFrom, dateTo]);
+  }, [mensagens, alteracoesResumo, movimentos, sdrs, metas, multiplicadores, dateFrom, dateTo]);
 
   const mpaGeral = useMemo(() => {
     if (performances.length === 0) return 0;
