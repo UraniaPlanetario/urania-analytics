@@ -617,6 +617,42 @@ GROUP BY i.user_id;
 
 **Consumido por:** `useLeadsAtribuidosPeriodo` em [src/areas/comercial/monitoramento/hooks/useConsistenciaData.ts](../src/areas/comercial/monitoramento/hooks/useConsistenciaData.ts).
 
+### `gold.mensagens_por_user_lead(p_from, p_to) → TABLE(user_id, total_msgs, leads_distintos)`
+
+Conta, por usuário, total de mensagens enviadas e leads únicos que receberam mensagem no período. Lê de `gold.cubo_historico_mensagens` com `tipo='enviada'`.
+
+```sql
+SELECT
+  criado_por_id AS user_id,
+  COUNT(*)::bigint AS total_msgs,
+  COUNT(DISTINCT lead_id)::bigint AS leads_distintos
+FROM gold.cubo_historico_mensagens
+WHERE tipo = 'enviada'
+  AND criado_por_id IS NOT NULL
+  AND data_criacao >= p_from
+  AND data_criacao <= p_to
+GROUP BY criado_por_id;
+```
+
+**Consumida por:** `useMensagensPorLead` em [`monitoramento/hooks/useConsistenciaData.ts`](../src/areas/comercial/monitoramento/hooks/useConsistenciaData.ts) — usada na sub-aba "Mensagem Enviada" do Monitoramento para KPI "Mensagens por Lead" e chart "Mensagens por Lead por Usuário".
+
+### `gold.top_campos_alterados_periodo(p_from, p_to, p_limit=20) → TABLE(campo_nome, total)`
+
+Top N campos mais alterados no período, restritos à whitelist (`gold.alteracoes_humanas`).
+
+```sql
+SELECT campo_nome, COUNT(*)::bigint AS total
+FROM gold.alteracoes_humanas
+WHERE data_criacao >= p_from
+  AND data_criacao <= p_to
+  AND campo_nome IS NOT NULL
+GROUP BY campo_nome
+ORDER BY total DESC
+LIMIT p_limit;
+```
+
+**Consumida por:** `useTopCamposAlterados` em [`monitoramento/hooks/useConsistenciaData.ts`](../src/areas/comercial/monitoramento/hooks/useConsistenciaData.ts) — usada na sub-aba "Campo alterado" do Monitoramento.
+
 ### Funções `gold.refresh_*()`
 
 Todas são `SECURITY DEFINER` com `statement_timeout` alto (300–900s). Seguem o padrão: TRUNCATE → INSERT SELECT → retorna `N rows inserted`.

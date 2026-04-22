@@ -104,6 +104,56 @@ export function useClosedLeadsPeriodo(dateFrom: string | null, dateTo: string | 
   });
 }
 
+export interface MensagensPorLeadRow {
+  user_id: number;
+  total_msgs: number;
+  leads_distintos: number;
+}
+
+export function useMensagensPorLead(dateFrom: string | null, dateTo: string | null) {
+  return useQuery<MensagensPorLeadRow[]>({
+    queryKey: ['monitoramento_msgs_por_lead', dateFrom, dateTo],
+    queryFn: async () => {
+      const from = dateFrom ? dateFrom + 'T00:00:00Z' : '1970-01-01T00:00:00Z';
+      const to = dateTo ? dateTo + 'T23:59:59Z' : '2999-12-31T23:59:59Z';
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('mensagens_por_user_lead', { p_from: from, p_to: to });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        user_id: Number(r.user_id),
+        total_msgs: Number(r.total_msgs),
+        leads_distintos: Number(r.leads_distintos),
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export interface TopCampoRow {
+  campo_nome: string;
+  total: number;
+}
+
+export function useTopCamposAlterados(dateFrom: string | null, dateTo: string | null, limit = 20) {
+  return useQuery<TopCampoRow[]>({
+    queryKey: ['monitoramento_top_campos', dateFrom, dateTo, limit],
+    queryFn: async () => {
+      const from = dateFrom ? dateFrom + 'T00:00:00Z' : '1970-01-01T00:00:00Z';
+      const to = dateTo ? dateTo + 'T23:59:59Z' : '2999-12-31T23:59:59Z';
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('top_campos_alterados_periodo', { p_from: from, p_to: to, p_limit: limit });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        campo_nome: r.campo_nome,
+        total: Number(r.total),
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useLeadsAtribuidosPeriodo(dateFrom: string | null, dateTo: string | null) {
   return useQuery<Record<number, number>>({
     queryKey: ['consistencia_leads_atribuidos', dateFrom, dateTo],

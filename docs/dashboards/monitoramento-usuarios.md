@@ -119,11 +119,12 @@ Retorna `{user_id → count}` de leads atribuídos no período (dupla contagem).
 
 | Id | Label | Componente |
 |---|---|---|
-| `overview` | Visão Geral | `OverviewBlock` |
-| `categories` | Por Categoria | `UsersBlock` |
+| `overview` | Visão Geral | `OverviewBlock` (que embute `UsersBlock` abaixo) |
 | `user-detail` | Por Usuário | `UserDetailBlock` |
 | `consistencia` | Consistência CRM | `ConsistenciaCRMBlock` |
 | `ranking` | Ranking por Percentil | `RankingPercentilBlock` |
+
+A antiga aba "Por Categoria" foi **incorporada** na Visão Geral — o detalhamento por categoria aparece logo abaixo do gráfico geral. Remove a necessidade de navegar entre abas para ver total vs. detalhe.
 
 ---
 
@@ -141,8 +142,50 @@ Consome `filtered` (já com user/category/role filter aplicado).
 
 ### BarChart horizontal: Atividades por Categoria
 - `Σ activity_count` agrupado por `category`
-- **Exclui** `'Tag'` e `'Vinculacao'` (categorias residuais)
+- **Tarefa** é renomeada para **"Tarefas Concluídas"** e conta **apenas `event_type='task_completed'`** — não soma `task_added` + `task_completed` da mesma tarefa
+- **Exclui** `'Tag'`, `'Vinculacao'`, `'Outros'` (categorias residuais)
 - Cores: `CATEGORY_COLORS`
+
+### Detalhamento por Categoria (`UsersBlock` embutido abaixo)
+
+Sub-abas com KPIs e charts específicos (Mensagem Enviada, Tarefa, Nota, Movimentação, Campo alterado, Ligação). Detalhes na seção a seguir.
+
+---
+
+## UsersBlock — sub-abas embutidas na Visão Geral
+
+### Sub-aba: Mensagem Enviada
+
+**KPIs:** Total msgs, Média por Usuário (total/users), **Mensagens por Lead** (total_msgs/leads_distintos do time).
+
+**Charts:**
+- `Mensagem Enviada por Usuário` — BarChart horizontal, soma por `user_name`, ReferenceLine na média
+- `Mensagens por Lead por Usuário` — novo: BarChart horizontal mostrando, por vendedor, `total_msgs / leads_distintos` (dados via RPC `gold.mensagens_por_user_lead`)
+
+### Sub-aba: Tarefa
+
+**KPIs:**
+- Tarefas Concluídas — count `event_type='task_completed'`
+- Tarefas Criadas — count `event_type='task_added'`
+- **% Conclusão** — `(concluídas / criadas) × 100`, com hint "Concluídas ÷ Criadas no mesmo período × 100"
+
+**Charts:** Concluídas por Usuário, Criadas por Usuário (barras horizontais).
+
+A KPI/chart "Tarefas Alteradas" foi **removida** (`task_text_changed`, `task_deadline_changed` etc. já são filtrados por `gold.user_activities_humanas`).
+
+### Sub-aba: Campo alterado
+
+**KPIs:** Total, Média por Usuário.
+
+**Charts:**
+- `Campo alterado por Usuário` — BarChart horizontal
+- `Top Campos Alterados no Período` — novo: top 20 campos (por `campo_nome`) mais alterados no período, via RPC `gold.top_campos_alterados_periodo`
+
+### Sub-abas Nota / Movimentação / Ligação
+
+KPIs (Total, Média por Usuário) + BarChart horizontal por usuário. Sem features especiais.
+
+A sub-aba **"Outros"** foi removida (categoria já estava em `EXCLUDED_CATEGORIES` e os dados não entravam em nada).
 
 ---
 
