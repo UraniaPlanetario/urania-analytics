@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 import { LeadVendedor, formatCurrency } from '../types';
+import { filterLeadsFechados } from './BlocoFechamentos';
 
 const TOOLTIP_STYLE = {
   contentStyle: { backgroundColor: 'hsl(240, 10%, 10%)', border: 'none', borderRadius: 8 },
@@ -25,7 +26,24 @@ interface Props {
   dateTo: Date | null;
 }
 
-function inRange(dateStr: string | null, from: Date | null, to: Date | null): boolean {
+function toISO(d: Date | null): string | null {
+  if (!d) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Para colunas `date` (YYYY-MM-DD): compara string para evitar UTC trap.
+ *  Para colunas timestamp com timezone, usa Date objects. */
+function inRangeDateStr(dateStr: string | null, from: Date | null, to: Date | null): boolean {
+  if (!dateStr) return false;
+  const d = dateStr.slice(0, 10);
+  const fromISO = toISO(from);
+  const toISOstr = toISO(to);
+  if (fromISO && d < fromISO) return false;
+  if (toISOstr && d > toISOstr) return false;
+  return true;
+}
+
+function inRangeTs(dateStr: string | null, from: Date | null, to: Date | null): boolean {
   if (!dateStr) return false;
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return false;
@@ -39,12 +57,11 @@ function inRange(dateStr: string | null, from: Date | null, to: Date | null): bo
 }
 
 export function BlocoFaturamento({ leads, dateFrom, dateTo }: Props) {
-  // VIEW A — Valor Vendido: filter by data_de_fechamento
+  // VIEW A — Valor Vendido: aplica mesma regra do BlocoFechamentos/BlocoDiarias
+  // (exclui cancelados, exige status='Venda Fechada', funil pós-venda, etc) + filtra por data_de_fechamento
   const viewALeads = useMemo(() => {
-    return leads.filter((l) =>
-      l.vendedor != null &&
-      l.data_de_fechamento != null &&
-      inRange(l.data_de_fechamento, dateFrom, dateTo)
+    return filterLeadsFechados(leads).filter((l) =>
+      inRangeDateStr(l.data_de_fechamento, dateFrom, dateTo)
     );
   }, [leads, dateFrom, dateTo]);
 
@@ -64,11 +81,16 @@ export function BlocoFaturamento({ leads, dateFrom, dateTo }: Props) {
       .sort((a, b) => b.value - a.value);
   }, [viewALeads]);
 
-  // VIEW B — Faturamento Geral: filter by data_e_hora_do_agendamento
+  // VIEW B — Faturamento Geral: leads com agendamento efetivo no período
+  // (usa data_e_hora_do_agendamento = timestamptz, não tem UTC trap)
+  // Cancelados também excluídos via filterLeadsFechados? Não — Faturamento Geral
+  // mede "o que está agendado no mês", independente de ter fechado — mantém regra atual
+  // MAS exclui leads cancelados pra não inflar o valor.
   const viewBLeads = useMemo(() => {
     return leads.filter((l) =>
       l.data_e_hora_do_agendamento != null &&
-      inRange(l.data_e_hora_do_agendamento, dateFrom, dateTo)
+      l.status_lead !== 'Cancelado' &&
+      inRangeTs(l.data_e_hora_do_agendamento, dateFrom, dateTo)
     );
   }, [leads, dateFrom, dateTo]);
 
@@ -103,7 +125,7 @@ export function BlocoFaturamento({ leads, dateFrom, dateTo }: Props) {
         <div className="mb-3">
           <h2 className="text-lg font-semibold text-foreground">Valor Vendido</h2>
           <p className="text-xs text-muted-foreground">
-            Soma do <strong>valor_total</strong> de leads com <strong>data de fechamento</strong> no período selecionado.
+            Soma do <strong>valor_total</strong> de leads fechados (<code className="text-[10px]">Venda Fechada</code>) com <strong>data de fechamento</strong> no período. Cancelados excluídos.
           </p>
         </div>
 
@@ -149,7 +171,7 @@ export function BlocoFaturamento({ leads, dateFrom, dateTo }: Props) {
         <div className="mb-3">
           <h2 className="text-lg font-semibold text-foreground">Faturamento Geral</h2>
           <p className="text-xs text-muted-foreground">
-            Soma do <strong>valor_total</strong> de leads com <strong>data do agendamento</strong> no período selecionado.
+            Soma do <strong>valor_total</strong> de leads com <strong>data do agendamento</strong> no período. Cancelados excluídos.
           </p>
         </div>
 
