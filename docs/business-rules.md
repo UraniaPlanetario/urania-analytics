@@ -47,6 +47,7 @@ END AS status_lead
 
 **Observações importantes:**
 
+- **Leads cancelados são excluídos de fechamentos e diárias.** Mesmo que a venda tenha sido efetivada antes do cancelamento, um lead com `custom_fields.'Cancelado (Onboarding)' = 'Sim'` é classificado como `'Cancelado'` e não conta como `'Venda Fechada'`. Os blocos "Fechamentos" e "Diárias" do Desempenho Vendedor mostram um aviso visível sobre essa exclusão.
 - **Um lead cancelado que tem `Data de Fechamento` preenchida ainda é `'Cancelado'`**, nunca `'Venda Fechada'` — a cláusula 1 tem precedência.
 - **`Data de Fechamento`** é um custom field editado manualmente pelo time (não é `closed_at` nativo do Kommo). Ver [Sobre `data_de_fechamento`](#sobre-data_de_fechamento).
 - **`status_name`** é o estágio atual (ex.: `'Negociação'`, `'Lost'`, `'Venda perdida'`) — o `ILIKE '%perdida%'` é proposital para pegar variações de nomenclatura.
@@ -54,19 +55,23 @@ END AS status_lead
 
 ### Sobre `vendedor` (`cubo_leads_consolidado.vendedor`)
 
-O campo **não** é `l.custom_fields->>'Vendedor/Consultor'` direto. A função `gold.refresh_leads_consolidado` aplica uma **regra de precedência tripla** (v3) para decidir o vendedor efetivo de cada lead:
+O campo **não** é `l.custom_fields->>'Vendedor/Consultor'` direto. A função `gold.refresh_leads_consolidado` aplica uma **regra de precedência tripla** (v4) para decidir o vendedor efetivo de cada lead:
 
 | Ordem | Fonte | Quando |
 |---|---|---|
 | 1º | `config.lead_vendedor_override.vendedor` | Override manual cadastrado — sempre ganha |
-| 2º | `moved_by` do último `Closed - won` em **funil de vendas** (não pós-venda) | Se alguém do grupo `'Sucesso do cliente'` alterou o custom field `Vendedor/Consultor` **depois** da saída do onboarding |
+| 2º | `moved_by` do último `Closed - won` em **funil de vendas** (não pós-venda) | `moved_by` existe **E** (algum usuário do grupo `'Sucesso do cliente'` alterou o custom field pós-saída do onboarding **OU** o valor atual do custom field pertence a alguém do grupo `'Sucesso do cliente'`) |
 | 3º | `custom_fields->>'Vendedor/Consultor'` | Padrão — valor atual no Kommo |
 
-**Motivação:** o campo `Vendedor/Consultor` é editável por qualquer usuário do Kommo. Quando o lead entra em `Clientes - CS`, o time de CS frequentemente altera esse campo para si mesmo (tomando o crédito da venda pra continuar atendendo o cliente). A regra v3 detecta esse padrão e devolve o vendedor real (quem efetivamente bateu Closed-won).
+**Motivação:** o campo `Vendedor/Consultor` é editável por qualquer usuário do Kommo. Até abril/2026, quando o lead entrava em `Clientes - CS` uma automação atribuía a conta de CS ao campo — e o time de CS continuava alterando manualmente quando tomava o atendimento. Ambos os fluxos foram descontinuados, mas os dados históricos refletem o problema. A regra v4 detecta esse padrão e devolve o vendedor real (quem efetivamente bateu Closed-won em funil de vendas).
 
 **"Saída do onboarding"** é a primeira movimentação com `pipeline_from ∈ ('Onboarding Escolas','Onboarding SME','Financeiro')` para um funil **fora** do conjunto pós-venda — tipicamente `pipeline_to = 'Clientes - CS'`.
 
-**Casos de borda históricos** (leads pré-2026-01 sem histórico de events, ou correções manuais erradas no CRM): registra-se em `config.lead_vendedor_override` com `lead_id`, `vendedor`, `motivo`. Precedência máxima. Daqui em diante, com o sync diário capturando alterações em tempo hábil, essa tabela deve crescer muito pouco.
+**Casos de borda históricos** (leads pré-2026-01 sem histórico de events; plantão onde o `moved_by` de Closed-won não é o vendedor real; correções manuais erradas no CRM): registra-se em `config.lead_vendedor_override` com `lead_id`, `vendedor`, `motivo`. Precedência máxima. Daqui em diante, com automação e alterações manuais desligadas, essa tabela deve crescer pouco.
+
+**Exemplos de overrides ativos:**
+- `19377171` — APMF Escola São Sebastião → Catarine Manara (histórico pré-2026-01)
+- `24595621` — Colégio CEOC → Rafael Araújo (plantão: Juliana bateu Closed-won, Rafael era o real)
 
 ### Sobre `data_de_fechamento`
 

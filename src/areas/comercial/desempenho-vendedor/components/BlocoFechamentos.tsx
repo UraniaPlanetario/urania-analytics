@@ -92,6 +92,9 @@ export function BlocoFechamentos({ leads }: { leads: LeadVendedor[] }) {
   return (
     <div className="space-y-6">
       {/* 3.1 KPI */}
+      <p className="text-[11px] text-muted-foreground italic">
+        Leads cancelados (<code className="font-mono text-[10px]">Cancelado (Onboarding) = Sim</code>) são excluídos dos totais de fechamentos e diárias.
+      </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Total de Leads Fechados</p>

@@ -94,6 +94,9 @@ export function BlocoDiarias({ leads }: { leads: LeadVendedor[] }) {
   return (
     <div className="space-y-6">
       {/* 4.1 + 4.4 KPIs */}
+      <p className="text-[11px] text-muted-foreground italic">
+        Leads cancelados (<code className="font-mono text-[10px]">Cancelado (Onboarding) = Sim</code>) são excluídos dos totais de fechamentos e diárias.
+      </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Total de Diárias</p>
