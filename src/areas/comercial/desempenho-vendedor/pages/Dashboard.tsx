@@ -412,21 +412,18 @@ export default function DesempenhoVendedorDashboard() {
     return alteracoesMensal.filter((r) => r.user_name && baseSet.has(r.user_name));
   }, [alteracoesMensal, filters.vendedores, ativosSet]);
 
-  // Leads filtrados por data (para blocos de fechamento/diárias — usam data_de_fechamento)
+  // Leads filtrados por data (para blocos de fechamento/diárias — usam data_de_fechamento).
+  // Compara strings YYYY-MM-DD para evitar UTC trap: new Date('2026-04-01') vira
+  // 2026-03-31 21:00 BRT e cairia dentro do range de março.
   const leadsFilteredByDate = useMemo(() => {
-    const from = filters.dateRange.from;
-    const to = filters.dateRange.to;
-    if (!from && !to) return filteredLeads;
+    const fromISO = toISO(filters.dateRange.from);
+    const toISOstr = toISO(filters.dateRange.to);
+    if (!fromISO && !toISOstr) return filteredLeads;
     return filteredLeads.filter((l) => {
       if (!l.data_de_fechamento) return false;
-      const d = new Date(l.data_de_fechamento);
-      if (isNaN(d.getTime())) return false;
-      if (from && d < from) return false;
-      if (to) {
-        const end = new Date(to);
-        end.setHours(23, 59, 59, 999);
-        if (d > end) return false;
-      }
+      const d = l.data_de_fechamento.slice(0, 10); // YYYY-MM-DD
+      if (fromISO && d < fromISO) return false;
+      if (toISOstr && d > toISOstr) return false;
       return true;
     });
   }, [filteredLeads, filters.dateRange]);

@@ -78,7 +78,7 @@ export function BlocoCancelamentos({ leads, dateFrom, dateTo }: Props) {
     for (const l of canceladosUnique) {
       const v = l.vendedor || 'Não atribuído';
       if (!topVendedores.includes(v)) continue;
-      const d = l.data_cancelamento ? new Date(l.data_cancelamento) : null;
+      const d = l.data_cancelamento ? new Date(l.data_cancelamento + 'T00:00:00') : null;
       if (!d || isNaN(d.getTime())) continue;
       const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
       if (!map[key]) map[key] = {};
@@ -135,7 +135,7 @@ export function BlocoCancelamentos({ leads, dateFrom, dateTo }: Props) {
       // Pega a origem do cancelamento: ou o próprio cancelado se tiver data_fechamento, ou de allFechados
       const origem = fechadoById[c.id_lead] || c;
       if (!origem.data_de_fechamento) continue;
-      const d = new Date(origem.data_de_fechamento);
+      const d = new Date(origem.data_de_fechamento + 'T00:00:00');
       if (isNaN(d.getTime())) continue;
       const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
       monthsOfCancelled.add(key);
@@ -146,7 +146,7 @@ export function BlocoCancelamentos({ leads, dateFrom, dateTo }: Props) {
     let totalFechamentosDenom = 0;
     for (const l of allFechados) {
       if (!l.data_de_fechamento) continue;
-      const d = new Date(l.data_de_fechamento);
+      const d = new Date(l.data_de_fechamento + 'T00:00:00');
       if (isNaN(d.getTime())) continue;
       const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
       if (!monthsOfCancelled.has(key)) continue;

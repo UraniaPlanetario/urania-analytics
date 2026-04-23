@@ -66,7 +66,7 @@ export function BlocoFechamentos({ leads }: { leads: LeadVendedor[] }) {
     for (const l of valid) {
       const v = l.vendedor || 'Não atribuído';
       if (!topVendedores.includes(v)) continue;
-      const d = l.data_de_fechamento ? new Date(l.data_de_fechamento) : null;
+      const d = l.data_de_fechamento ? new Date(l.data_de_fechamento + 'T00:00:00') : null;
       if (!d || isNaN(d.getTime())) continue;
       const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
       if (!map[key]) map[key] = {};
