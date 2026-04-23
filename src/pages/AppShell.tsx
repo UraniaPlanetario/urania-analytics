@@ -9,20 +9,13 @@ import DesempenhoVendedor from '@/areas/comercial/desempenho-vendedor/index';
 import DesempenhoSDR from '@/areas/comercial/desempenho-sdr/index';
 import Faturamento from '@/areas/financeiro/index';
 import AreaPlaceholder from '@/areas/placeholder';
-import AdminUsuarios from '@/pages/AdminUsuarios';
-import { useUserProfile } from '@/hooks/useUserProfile';
-import { getAccessiblePaths } from '@/lib/permissions';
+import AdminUsers from '@/pages/admin/Users';
+import AdminDepartments from '@/pages/admin/Departments';
+import AdminAccessControl from '@/pages/admin/AccessControl';
+import AdminPlatforms from '@/pages/admin/Platforms';
 
 interface AppShellProps {
   onLogout: () => void;
-}
-
-function DefaultRedirect() {
-  const { data: profile } = useUserProfile();
-  const accessible = getAccessiblePaths(profile?.roles ?? []);
-  // Redireciona pro primeiro dashboard acessível
-  const target = accessible.find((p) => !p.startsWith('/admin')) || '/comercial/qualidade';
-  return <Navigate to={target} replace />;
 }
 
 const protectedRoutes = [
@@ -36,7 +29,10 @@ const protectedRoutes = [
   { path: '/financeiro', element: <Faturamento /> },
   { path: '/onboarding', element: <AreaPlaceholder title="Onboarding" /> },
   { path: '/tecnologia', element: <AreaPlaceholder title="Tecnologia" /> },
-  { path: '/admin/usuarios', element: <AdminUsuarios /> },
+  { path: '/admin/usuarios', element: <AdminUsers /> },
+  { path: '/admin/departamentos', element: <AdminDepartments /> },
+  { path: '/admin/acessos', element: <AdminAccessControl /> },
+  { path: '/admin/plataformas', element: <AdminPlatforms /> },
 ];
 
 export default function AppShell({ onLogout }: AppShellProps) {
@@ -52,7 +48,7 @@ export default function AppShell({ onLogout }: AppShellProps) {
               element={<ProtectedRoute>{element}</ProtectedRoute>}
             />
           ))}
-          <Route path="*" element={<DefaultRedirect />} />
+          <Route path="*" element={<Navigate to="/comercial/qualidade" replace />} />
         </Routes>
       </main>
     </div>

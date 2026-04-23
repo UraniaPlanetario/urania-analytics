@@ -93,11 +93,28 @@ interface SyncReport {
   errors: string[];
 }
 
-async function verifyBIAdmin(bi: any, sessionToken: string): Promise<boolean> {
-  const { data: { user }, error } = await bi.auth.getUser(sessionToken);
+function decodeJwtPayload(token: string): any | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+async function verifyBIAdmin(bi: any, token: string): Promise<boolean> {
+  // Service-role key (server-to-server / bootstrap) — bypass
+  const payload = decodeJwtPayload(token);
+  if (payload?.role === "service_role") return true;
+
+  // Session token de usuário logado — precisa ser admin do BI
+  const { data: { user }, error } = await bi.auth.getUser(token);
   if (error || !user) return false;
   const { data } = await bi
-    .from("users_new")
+    .from("users")
     .select("is_global_admin, is_active")
     .eq("auth_user_id", user.id)
     .maybeSingle();
@@ -125,6 +142,7 @@ Deno.serve(async (req) => {
 
     const bi = createClient(BI_URL, BI_KEY);
     const isAdmin = await verifyBIAdmin(bi, sessionToken);
+    // sessionToken é reaproveitado como "token" genérico: pode ser JWT ou service_role
     if (!isAdmin) {
       return new Response(JSON.stringify({ error: "Acesso negado — admin do BI apenas" }), {
         status: 403,
@@ -169,7 +187,7 @@ Deno.serve(async (req) => {
     report.user_departments.total_hub = hubUserDepts.length;
     report.hub_deptos_slugs = hubDepts.map((d) => d.slug).sort();
 
-    const { count: countBefore } = await bi.from("users_new").select("*", { count: "exact", head: true });
+    const { count: countBefore } = await bi.from("users").select("*", { count: "exact", head: true });
     report.bi_user_count_before = countBefore ?? 0;
 
     if (dryRun) {
@@ -231,7 +249,7 @@ Deno.serve(async (req) => {
     //    Estratégia: upsert por email. Se já existe, mantém auth_user_id,
     //    is_global_admin, kommo_user_id locais. Se não existe, cria.
     const { data: biExistingUsers } = await bi
-      .from("users_new")
+      .from("users")
       .select("id, email, auth_user_id, is_global_admin, kommo_user_id");
     const existingByEmail = new Map<string, any>();
     for (const u of biExistingUsers ?? []) existingByEmail.set(u.email.toLowerCase(), u);
@@ -273,20 +291,20 @@ Deno.serve(async (req) => {
     // Batch insert
     for (let i = 0; i < toInsert.length; i += 500) {
       const batch = toInsert.slice(i, i + 500);
-      const { error } = await bi.from("users_new").insert(batch);
+      const { error } = await bi.from("users").insert(batch);
       if (error) report.errors.push(`insert users batch ${i}: ${error.message}`);
     }
 
     // Batch update (um por um porque auth_user_id local deve ser preservado)
     for (const u of toUpdate) {
       const { id, ...fields } = u;
-      const { error } = await bi.from("users_new").update(fields).eq("id", id);
+      const { error } = await bi.from("users").update(fields).eq("id", id);
       if (error) report.errors.push(`update user ${u.email}: ${error.message}`);
     }
 
     // ── 5. Sync user_departments ────────────────────────────────────────────
     //     Truncate + reinsert (operação simples; poucas linhas)
-    const { data: usersAfter } = await bi.from("users_new").select("id");
+    const { data: usersAfter } = await bi.from("users").select("id");
     const validUserIds = new Set((usersAfter ?? []).map((u: any) => u.id));
 
     // Remove todos user_departments (serão reinseridos)
@@ -313,7 +331,7 @@ Deno.serve(async (req) => {
     const { data: authUsers } = await bi.auth.admin.listUsers();
     for (const au of authUsers?.users ?? []) {
       const { error } = await bi
-        .from("users_new")
+        .from("users")
         .update({ auth_user_id: au.id })
         .eq("email", au.email)
         .is("auth_user_id", null);
@@ -322,7 +340,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { count: countAfter } = await bi.from("users_new").select("*", { count: "exact", head: true });
+    const { count: countAfter } = await bi.from("users").select("*", { count: "exact", head: true });
     report.bi_user_count_after = countAfter ?? 0;
 
     // ── 7. Log ───────────────────────────────────────────────────────────────

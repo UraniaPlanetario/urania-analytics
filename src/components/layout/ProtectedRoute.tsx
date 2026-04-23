@@ -1,13 +1,10 @@
 import { ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
-import { useUserProfile } from '@/hooks/useUserProfile';
-import { hasAccess } from '@/lib/permissions';
+import { useRouteAccess } from '@/hooks/useRouteAccess';
 import AccessDenied from '@/pages/AccessDenied';
 import { Loader2 } from 'lucide-react';
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const location = useLocation();
-  const { data: profile, isLoading } = useUserProfile();
+  const { canAccess, isLoading } = useRouteAccess();
 
   if (isLoading) {
     return (
@@ -17,10 +14,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  const roles = profile?.roles ?? [];
-  if (!hasAccess(roles, location.pathname)) {
-    return <AccessDenied />;
-  }
+  if (!canAccess) return <AccessDenied />;
 
   return <>{children}</>;
 }
