@@ -26,9 +26,9 @@ const VENDAS_WPP = 'Vendas WhatsApp';
 
 type Canal = 'insta' | 'whatsapp' | 'geral';
 const CANAIS: { id: Canal; label: string }[] = [
-  { id: 'insta', label: 'Instagram' },
-  { id: 'whatsapp', label: 'WhatsApp' },
   { id: 'geral', label: 'Geral' },
+  { id: 'whatsapp', label: 'WhatsApp' },
+  { id: 'insta', label: 'Instagram' },
 ];
 
 interface CanalStats {
@@ -83,7 +83,10 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
         if (inter.size > 0) qSdr[sdr] = inter;
       }
 
-      // Série mensal — distribui por mês do movimento de entrada
+      // Série mensal — distribui por mês do movimento de entrada / qualificação.
+      // Sem exigir cross-month: um lead recebido em mar e qualificado em abr conta
+      // como "qualificado em abr" (taxa de abril) e "recebido em mar" (denominador
+      // de mar). Reflete fluxo real.
       const recebidosPorMes: Record<string, Set<number>> = {};
       for (const m of movimentos) {
         const entrou =
@@ -105,7 +108,6 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
         if (!leadsSet.has(m.lead_id)) continue;
         const d = new Date(m.moved_at);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        if (!recebidosPorMes[key]?.has(m.lead_id)) continue;
         if (!qualPorMes[key]) qualPorMes[key] = new Set();
         qualPorMes[key].add(m.lead_id);
       }
@@ -143,9 +145,10 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
       .map(([sdr, ids]) => ({
         sdr,
         qualificados: ids.size,
-        taxa: total > 0 ? (ids.size / total) * 100 : 0,
+        // % de contribuição pra taxa global (ids/total), útil no tooltip
+        pctContribuicao: total > 0 ? (ids.size / total) * 100 : 0,
       }))
-      .sort((a, b) => b.taxa - a.taxa);
+      .sort((a, b) => b.qualificados - a.qualificados);
   }, [atual, total]);
 
   return (
@@ -202,27 +205,30 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
         </div>
       </div>
 
-      {/* Taxa por SDR */}
+      {/* Qualificados por SDR — contagem absoluta */}
       <div className="card-glass p-4 rounded-xl">
-        <h3 className="text-base font-semibold text-foreground mb-4">Taxa de Qualificação por SDR</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-foreground">Leads Qualificados por SDR</h3>
+          <p className="text-[11px] text-muted-foreground italic">
+            Apenas qualificações com SDR identificado (moved_by ≠ null). Automações de IA/bot não contam aqui.
+          </p>
+        </div>
         {taxaPorSdr.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             Nenhum SDR qualificou leads no período neste canal.
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(240, taxaPorSdr.length * 36)}>
-            <BarChart data={taxaPorSdr} layout="vertical" margin={{ left: 20, right: 60, top: 10, bottom: 10 }}>
+            <BarChart data={taxaPorSdr} layout="vertical" margin={{ left: 20, right: 80, top: 10, bottom: 10 }}>
               <CartesianGrid stroke="hsl(240, 4%, 16%)" horizontal={false} />
-              <XAxis type="number" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }}
-                tickFormatter={(v) => `${v}%`} />
+              <XAxis type="number" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }} />
               <YAxis type="category" dataKey="sdr" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }}
                 width={120} />
               <Tooltip {...TOOLTIP_STYLE}
                 formatter={(value: number, _n: string, p: any) =>
-                  [`${formatPct(value)} (${formatNumber(p.payload.qualificados)} leads)`, 'Taxa']} />
-              <Bar dataKey="taxa" fill={COLORS.green} radius={[0, 4, 4, 0]}>
-                <LabelList dataKey="taxa" position="right" fill={COLORS.muted} fontSize={11}
-                  formatter={(v: number) => formatPct(v)} />
+                  [`${formatNumber(value)} leads (${formatPct(p.payload.pctContribuicao)} da taxa global)`, 'Qualificados']} />
+              <Bar dataKey="qualificados" fill={COLORS.green} radius={[0, 4, 4, 0]}>
+                <LabelList dataKey="qualificados" position="right" fill={COLORS.muted} fontSize={11} fontWeight={600} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
