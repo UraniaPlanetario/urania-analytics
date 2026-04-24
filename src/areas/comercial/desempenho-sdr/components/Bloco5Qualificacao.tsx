@@ -145,10 +145,9 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
       .map(([sdr, ids]) => ({
         sdr,
         qualificados: ids.size,
-        // % de contribuição pra taxa global (ids/total), útil no tooltip
-        pctContribuicao: total > 0 ? (ids.size / total) * 100 : 0,
+        taxa: total > 0 ? (ids.size / total) * 100 : 0,
       }))
-      .sort((a, b) => b.qualificados - a.qualificados);
+      .sort((a, b) => b.taxa - a.taxa);
   }, [atual, total]);
 
   return (
@@ -205,12 +204,12 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
         </div>
       </div>
 
-      {/* Qualificados por SDR — contagem absoluta */}
+      {/* Taxa de Qualificação por SDR */}
       <div className="card-glass p-4 rounded-xl">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold text-foreground">Leads Qualificados por SDR</h3>
-          <p className="text-[11px] text-muted-foreground italic">
-            Apenas qualificações com SDR identificado (moved_by ≠ null). Automações de IA/bot não contam aqui.
+        <div className="flex items-start justify-between mb-4 gap-4">
+          <h3 className="text-base font-semibold text-foreground">Taxa de Qualificação por SDR</h3>
+          <p className="text-[11px] text-muted-foreground italic text-right max-w-md">
+            qualificados_do_sdr / leads_recebidos_no_canal. Automações/IA (moved_by ≠ identificado) não são atribuídas a nenhum SDR.
           </p>
         </div>
         {taxaPorSdr.length === 0 ? (
@@ -221,14 +220,16 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
           <ResponsiveContainer width="100%" height={Math.max(240, taxaPorSdr.length * 36)}>
             <BarChart data={taxaPorSdr} layout="vertical" margin={{ left: 20, right: 80, top: 10, bottom: 10 }}>
               <CartesianGrid stroke="hsl(240, 4%, 16%)" horizontal={false} />
-              <XAxis type="number" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }} />
+              <XAxis type="number" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }}
+                tickFormatter={(v) => `${v}%`} />
               <YAxis type="category" dataKey="sdr" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }}
                 width={120} />
               <Tooltip {...TOOLTIP_STYLE}
                 formatter={(value: number, _n: string, p: any) =>
-                  [`${formatNumber(value)} leads (${formatPct(p.payload.pctContribuicao)} da taxa global)`, 'Qualificados']} />
-              <Bar dataKey="qualificados" fill={COLORS.green} radius={[0, 4, 4, 0]}>
-                <LabelList dataKey="qualificados" position="right" fill={COLORS.muted} fontSize={11} fontWeight={600} />
+                  [`${formatPct(value)} (${formatNumber(p.payload.qualificados)} leads)`, 'Taxa']} />
+              <Bar dataKey="taxa" fill={COLORS.green} radius={[0, 4, 4, 0]}>
+                <LabelList dataKey="taxa" position="right" fill={COLORS.muted} fontSize={11} fontWeight={600}
+                  formatter={(v: number) => formatPct(v)} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
