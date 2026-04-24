@@ -145,16 +145,25 @@ export default function AdminUsers() {
   });
 
   const inviteMutation = useMutation({
-    mutationFn: async (email: string) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Sessão expirada');
-      const { data, error } = await supabase.functions.invoke('admin-invite-user', {
-        body: { email },
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (error) throw error;
-      if (!(data as any)?.success) throw new Error((data as any)?.error ?? 'Falha no envio');
-      return data as { mode: 'invite' | 'recovery'; email: string };
+    mutationFn: async (args: { email: string; hasAuth: boolean }) => {
+      if (args.hasAuth) {
+        // User já tem conta: envia email de redefinição via API nativa (dispara email de verdade)
+        const redirectTo = `${window.location.origin}/reset-password`;
+        const { error } = await supabase.auth.resetPasswordForEmail(args.email, { redirectTo });
+        if (error) throw error;
+        return { mode: 'recovery' as const, email: args.email };
+      } else {
+        // Shadow user: edge function que usa admin.inviteUserByEmail (cria conta + envia email)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Sessão expirada');
+        const { data, error } = await supabase.functions.invoke('admin-invite-user', {
+          body: { email: args.email, mode: 'invite' },
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (error) throw error;
+        if (!(data as any)?.success) throw new Error((data as any)?.error ?? 'Falha no envio');
+        return data as { mode: 'invite' | 'recovery'; email: string };
+      }
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['admin-users'] });
@@ -477,14 +486,14 @@ export default function AdminUsers() {
                           onClick={() => {
                             const label = u.auth_user_id ? 'redefinição de senha' : 'convite';
                             if (confirm(`Enviar ${label} para ${u.email}?`)) {
-                              inviteMutation.mutate(u.email);
+                              inviteMutation.mutate({ email: u.email, hasAuth: !!u.auth_user_id });
                             }
                           }}
                           disabled={inviteMutation.isPending}
                           className="p-1.5 rounded hover:bg-primary/20 text-primary disabled:opacity-50"
                           title={u.auth_user_id ? 'Enviar link de redefinição de senha' : 'Enviar convite para criar senha'}
                         >
-                          {inviteMutation.isPending && inviteMutation.variables === u.email ? (
+                          {inviteMutation.isPending && inviteMutation.variables?.email === u.email ? (
                             <Loader2 size={14} className="animate-spin" />
                           ) : (
                             <Mail size={14} />
