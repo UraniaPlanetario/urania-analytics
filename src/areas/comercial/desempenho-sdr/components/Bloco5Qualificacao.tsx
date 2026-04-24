@@ -1,8 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   BarChart,
   Bar,
-  LineChart,
   Line,
   ComposedChart,
   XAxis,
@@ -25,114 +24,129 @@ interface Props {
 const RECEPCAO = 'Recepção Leads Insta';
 const VENDAS_WPP = 'Vendas WhatsApp';
 
+type Canal = 'insta' | 'whatsapp' | 'geral';
+const CANAIS: { id: Canal; label: string }[] = [
+  { id: 'insta', label: 'Instagram' },
+  { id: 'whatsapp', label: 'WhatsApp' },
+  { id: 'geral', label: 'Geral' },
+];
+
+interface CanalStats {
+  leadsRecebidos: Set<number>;
+  leadsQualificados: Set<number>;
+  qualPorSdr: Record<string, Set<number>>;
+  serieMensal: Array<{ mes: string; leadsRecebidos: number; leadsQualificados: number; taxa: number }>;
+}
+
 export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
   const sdrNames = useMemo(() => new Set(sdrs.map((s) => s.nome)), [sdrs]);
+  const [canal, setCanal] = useState<Canal>('geral');
 
-  // Leads recebidos pelo time = leads que entraram no pipeline RECEPCAO no período (pipeline_to = RECEPCAO)
-  const leadsRecebidos = useMemo(() => {
-    const set = new Set<number>();
+  // Classifica cada lead: qual é o canal de entrada dele no período
+  const stats = useMemo<Record<Canal, CanalStats>>(() => {
+    // Entradas no período por canal
+    const insta = new Set<number>();       // entrou em Recepção Leads Insta
+    const whatsapp = new Set<number>();    // entrou em Vendas WhatsApp sem ter passado por Insta antes no período
+
     for (const m of movimentos) {
-      if (m.pipeline_to === RECEPCAO) set.add(m.lead_id);
+      if (m.pipeline_to === RECEPCAO) insta.add(m.lead_id);
     }
-    return set;
-  }, [movimentos]);
-
-  // Movimentos de qualificação: transição RECEPCAO -> VENDAS_WPP OU status_to_id é
-  // etapa de qualificação pelo SDR (ver QUALIFICADO_SDR_STATUS_IDS em types.ts)
-  const movimentosQualificacao = useMemo(() => {
-    return movimentos.filter((m) => {
-      const movedFromRec = m.pipeline_from === RECEPCAO && m.pipeline_to === VENDAS_WPP;
-      const isQual = isQualificadoSDRById(m.status_to_id);
-      return movedFromRec || isQual;
-    });
-  }, [movimentos]);
-
-  // Leads qualificados que TAMBÉM foram recebidos no mesmo período (evita taxa > 100%)
-  const leadsQualificados = useMemo(() => {
-    const set = new Set<number>();
-    for (const m of movimentosQualificacao) {
-      if (leadsRecebidos.has(m.lead_id)) set.add(m.lead_id);
-    }
-    return set;
-  }, [movimentosQualificacao, leadsRecebidos]);
-
-  // 5.1 KPI taxa de qualificação
-  const taxaQualificacao = useMemo(() => {
-    const total = leadsRecebidos.size;
-    const qualificados = leadsQualificados.size;
-    return {
-      total,
-      qualificados,
-      taxa: total > 0 ? (qualificados / total) * 100 : 0,
-    };
-  }, [leadsRecebidos, leadsQualificados]);
-
-  // 5.2 taxa por SDR (moved_by da movimentação de qualificação)
-  // Denominador por SDR: seria leads atribuídos ao SDR. Aproximação: contar leads qualificados por SDR como numerador
-  // e usar como denominador o total de leads recebidos no período dividido proporcionalmente?
-  // Melhor: usar numerador = leads qualificados por SDR, denominador = todos os leads qualificados por este SDR
-  // Interpretação direta: taxa = qualificados_do_sdr / leads_que_o_sdr_atuou
-  // Como não temos atribuição clara, usamos: para cada SDR, seus leads qualificados / total de leads recebidos
-  // Essa métrica reflete "contribuição para a qualificação total"
-  const taxaPorSdr = useMemo(() => {
-    const qualPorSdr: Record<string, Set<number>> = {};
-    for (const m of movimentosQualificacao) {
-      const sdr = m.moved_by;
-      if (!sdr || !sdrNames.has(sdr)) continue;
-      // Só conta se o lead foi recebido no período
-      if (!leadsRecebidos.has(m.lead_id)) continue;
-      if (!qualPorSdr[sdr]) qualPorSdr[sdr] = new Set();
-      qualPorSdr[sdr].add(m.lead_id);
-    }
-    const total = leadsRecebidos.size || 1;
-    return Object.entries(qualPorSdr)
-      .map(([sdr, leads]) => ({
-        sdr,
-        qualificados: leads.size,
-        taxa: (leads.size / total) * 100,
-      }))
-      .sort((a, b) => b.taxa - a.taxa);
-  }, [movimentosQualificacao, sdrNames, leadsRecebidos]);
-
-  // 5.3 Taxa mensal + total leads criados por mês
-  const serieMensal = useMemo(() => {
-    // Leads recebidos por mês
-    const recebidosPorMes: Record<string, Set<number>> = {};
     for (const m of movimentos) {
-      if (m.pipeline_to === RECEPCAO) {
+      if (m.pipeline_to === VENDAS_WPP && !insta.has(m.lead_id)) whatsapp.add(m.lead_id);
+    }
+    const geral = new Set<number>([...insta, ...whatsapp]);
+
+    // Movimentos de qualificação (os mesmos para qualquer canal)
+    const isQualMov = (m: MovimentoLead) =>
+      (m.pipeline_from === RECEPCAO && m.pipeline_to === VENDAS_WPP) ||
+      isQualificadoSDRById(m.status_to_id);
+
+    const qualificados = new Set<number>();
+    const qualPorSdrAll: Record<string, Set<number>> = {};
+    for (const m of movimentos) {
+      if (!isQualMov(m)) continue;
+      qualificados.add(m.lead_id);
+      const s = m.moved_by;
+      if (s && sdrNames.has(s)) {
+        if (!qualPorSdrAll[s]) qualPorSdrAll[s] = new Set();
+        qualPorSdrAll[s].add(m.lead_id);
+      }
+    }
+
+    const build = (leadsSet: Set<number>): CanalStats => {
+      const q = new Set<number>();
+      for (const id of qualificados) if (leadsSet.has(id)) q.add(id);
+      const qSdr: Record<string, Set<number>> = {};
+      for (const [sdr, ids] of Object.entries(qualPorSdrAll)) {
+        const inter = new Set<number>();
+        for (const id of ids) if (leadsSet.has(id)) inter.add(id);
+        if (inter.size > 0) qSdr[sdr] = inter;
+      }
+
+      // Série mensal — distribui por mês do movimento de entrada
+      const recebidosPorMes: Record<string, Set<number>> = {};
+      for (const m of movimentos) {
+        const entrou =
+          (leadsSet === insta && m.pipeline_to === RECEPCAO) ||
+          (leadsSet === whatsapp && m.pipeline_to === VENDAS_WPP && !insta.has(m.lead_id)) ||
+          (leadsSet === geral &&
+            (m.pipeline_to === RECEPCAO ||
+              (m.pipeline_to === VENDAS_WPP && !insta.has(m.lead_id))));
+        if (!entrou) continue;
+        if (!leadsSet.has(m.lead_id)) continue;
         const d = new Date(m.moved_at);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         if (!recebidosPorMes[key]) recebidosPorMes[key] = new Set();
         recebidosPorMes[key].add(m.lead_id);
       }
-    }
-    // Qualificados por mês (apenas dos que foram recebidos no mesmo mês)
-    const qualificadosPorMes: Record<string, Set<number>> = {};
-    for (const m of movimentosQualificacao) {
-      const d = new Date(m.moved_at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      // Só conta se o lead foi recebido no mesmo mês
-      if (!recebidosPorMes[key]?.has(m.lead_id)) continue;
-      if (!qualificadosPorMes[key]) qualificadosPorMes[key] = new Set();
-      qualificadosPorMes[key].add(m.lead_id);
-    }
-    const allKeys = new Set([
-      ...Object.keys(recebidosPorMes),
-      ...Object.keys(qualificadosPorMes),
-    ]);
-    return Array.from(allKeys)
-      .sort()
-      .map((key) => {
-        const rec = recebidosPorMes[key]?.size || 0;
-        const qual = qualificadosPorMes[key]?.size || 0;
-        return {
-          mes: key,
-          leadsRecebidos: rec,
-          leadsQualificados: qual,
-          taxa: rec > 0 ? (qual / rec) * 100 : 0,
-        };
-      });
-  }, [movimentos, movimentosQualificacao]);
+      const qualPorMes: Record<string, Set<number>> = {};
+      for (const m of movimentos) {
+        if (!isQualMov(m)) continue;
+        if (!leadsSet.has(m.lead_id)) continue;
+        const d = new Date(m.moved_at);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!recebidosPorMes[key]?.has(m.lead_id)) continue;
+        if (!qualPorMes[key]) qualPorMes[key] = new Set();
+        qualPorMes[key].add(m.lead_id);
+      }
+      const keys = new Set([...Object.keys(recebidosPorMes), ...Object.keys(qualPorMes)]);
+      const serieMensal = Array.from(keys)
+        .sort()
+        .map((key) => {
+          const rec = recebidosPorMes[key]?.size || 0;
+          const qual = qualPorMes[key]?.size || 0;
+          return {
+            mes: key,
+            leadsRecebidos: rec,
+            leadsQualificados: qual,
+            taxa: rec > 0 ? (qual / rec) * 100 : 0,
+          };
+        });
+
+      return { leadsRecebidos: leadsSet, leadsQualificados: q, qualPorSdr: qSdr, serieMensal };
+    };
+
+    return {
+      insta: build(insta),
+      whatsapp: build(whatsapp),
+      geral: build(geral),
+    };
+  }, [movimentos, sdrNames]);
+
+  const atual = stats[canal];
+  const total = atual.leadsRecebidos.size;
+  const qualificados = atual.leadsQualificados.size;
+  const taxa = total > 0 ? (qualificados / total) * 100 : 0;
+
+  const taxaPorSdr = useMemo(() => {
+    return Object.entries(atual.qualPorSdr)
+      .map(([sdr, ids]) => ({
+        sdr,
+        qualificados: ids.size,
+        taxa: total > 0 ? (ids.size / total) * 100 : 0,
+      }))
+      .sort((a, b) => b.taxa - a.taxa);
+  }, [atual, total]);
 
   return (
     <div className="space-y-6">
@@ -140,152 +154,112 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
         <h2 className="text-lg font-semibold text-foreground mb-1">
           A — Conversão Pré-venda (Qualificação)
         </h2>
-        <p className="text-xs text-muted-foreground mb-4">
-          Leads qualificados = movidos de "Recepção Leads Insta" para "Vendas WhatsApp" ou
-          passaram pela etapa de qualificação do SDR em Vendas WhatsApp (identificada por{' '}
-          <code>status_id</code> para ficar imune a renames).
+        <p className="text-xs text-muted-foreground mb-3">
+          Qualificado = lead movido de <strong>Recepção Leads Insta → Vendas WhatsApp</strong> ou que
+          passou pela etapa <strong>Qualificado SDR</strong> no funil de Vendas WhatsApp (status_id imune a renames).
         </p>
+
+        {/* Tabs de canal */}
+        <div className="card-glass p-1 rounded-xl inline-flex gap-1">
+          {CANAIS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setCanal(id)}
+              className={`px-4 py-1.5 rounded-lg text-xs transition-colors ${
+                canal === id
+                  ? 'bg-primary text-white font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* 5.1 KPI */}
+      {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Taxa de Qualificação</p>
-          <p className="text-4xl font-bold text-foreground">{formatPct(taxaQualificacao.taxa)}</p>
+          <p className="text-4xl font-bold text-foreground">{formatPct(taxa)}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {formatNumber(taxaQualificacao.qualificados)} de{' '}
-            {formatNumber(taxaQualificacao.total)} leads
+            {formatNumber(qualificados)} de {formatNumber(total)} leads
           </p>
         </div>
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Leads Recebidos</p>
-          <p className="text-4xl font-bold text-foreground">
-            {formatNumber(taxaQualificacao.total)}
+          <p className="text-4xl font-bold text-foreground">{formatNumber(total)}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {canal === 'insta' && 'Entradas em Recepção Leads Insta'}
+            {canal === 'whatsapp' && 'Entradas em Vendas WhatsApp (sem vir do Insta)'}
+            {canal === 'geral' && 'Soma Insta + WhatsApp'}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">Entradas em Recepção Leads Insta</p>
         </div>
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Leads Qualificados</p>
-          <p className="text-4xl font-bold text-foreground">
-            {formatNumber(taxaQualificacao.qualificados)}
-          </p>
+          <p className="text-4xl font-bold text-foreground">{formatNumber(qualificados)}</p>
           <p className="text-xs text-muted-foreground mt-1">Leads que passaram da qualificação</p>
         </div>
       </div>
 
-      {/* 5.2 taxa por SDR */}
+      {/* Taxa por SDR */}
       <div className="card-glass p-4 rounded-xl">
         <h3 className="text-base font-semibold text-foreground mb-4">Taxa de Qualificação por SDR</h3>
         {taxaPorSdr.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
-            Nenhum SDR qualificou leads no período.
+            Nenhum SDR qualificou leads no período neste canal.
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(240, taxaPorSdr.length * 36)}>
-            <BarChart
-              data={taxaPorSdr}
-              layout="vertical"
-              margin={{ left: 20, right: 60, top: 10, bottom: 10 }}
-            >
+            <BarChart data={taxaPorSdr} layout="vertical" margin={{ left: 20, right: 60, top: 10, bottom: 10 }}>
               <CartesianGrid stroke="hsl(240, 4%, 16%)" horizontal={false} />
-              <XAxis
-                type="number"
-                stroke={COLORS.muted}
-                tick={{ fill: COLORS.muted, fontSize: 12 }}
-                tickFormatter={(v) => `${v}%`}
-              />
-              <YAxis
-                type="category"
-                dataKey="sdr"
-                stroke={COLORS.muted}
-                tick={{ fill: COLORS.muted, fontSize: 12 }}
-                width={120}
-              />
-              <Tooltip
-                {...TOOLTIP_STYLE}
-                formatter={(value: number, _name: string, p: any) => [
-                  `${formatPct(value)} (${formatNumber(p.payload.qualificados)} leads)`,
-                  'Taxa',
-                ]}
-              />
+              <XAxis type="number" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }}
+                tickFormatter={(v) => `${v}%`} />
+              <YAxis type="category" dataKey="sdr" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }}
+                width={120} />
+              <Tooltip {...TOOLTIP_STYLE}
+                formatter={(value: number, _n: string, p: any) =>
+                  [`${formatPct(value)} (${formatNumber(p.payload.qualificados)} leads)`, 'Taxa']} />
               <Bar dataKey="taxa" fill={COLORS.green} radius={[0, 4, 4, 0]}>
-                <LabelList
-                  dataKey="taxa"
-                  position="right"
-                  fill={COLORS.muted}
-                  fontSize={11}
-                  formatter={(v: number) => formatPct(v)}
-                />
+                <LabelList dataKey="taxa" position="right" fill={COLORS.muted} fontSize={11}
+                  formatter={(v: number) => formatPct(v)} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      {/* 5.3 Linha mensal + barras de leads criados */}
+      {/* Série mensal */}
       <div className="card-glass p-4 rounded-xl">
         <h3 className="text-base font-semibold text-foreground mb-4">
           Evolução Mensal — Taxa e Leads Recebidos
         </h3>
-        {serieMensal.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            Sem dados no período selecionado.
-          </p>
+        {atual.serieMensal.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Sem dados no período selecionado.</p>
         ) : (
           <ResponsiveContainer width="100%" height={320}>
-            <ComposedChart data={serieMensal} margin={{ left: 10, right: 10, top: 20, bottom: 10 }}>
+            <ComposedChart data={atual.serieMensal} margin={{ left: 10, right: 10, top: 20, bottom: 10 }}>
               <CartesianGrid stroke="hsl(240, 4%, 16%)" />
-              <XAxis
-                dataKey="mes"
-                stroke={COLORS.muted}
-                tick={{ fill: COLORS.muted, fontSize: 11 }}
-              />
-              <YAxis
-                yAxisId="left"
-                stroke={COLORS.muted}
-                tick={{ fill: COLORS.muted, fontSize: 12 }}
-              />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                stroke={COLORS.muted}
-                tick={{ fill: COLORS.muted, fontSize: 12 }}
-                tickFormatter={(v) => `${v}%`}
-              />
-              <Tooltip
-                {...TOOLTIP_STYLE}
-                formatter={(value: number, name: string) => {
-                  if (name === 'Taxa') return [formatPct(value), name];
-                  return [formatNumber(value), name];
-                }}
-              />
+              <XAxis dataKey="mes" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 11 }} />
+              <YAxis yAxisId="left" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }} />
+              <YAxis yAxisId="right" orientation="right" stroke={COLORS.muted}
+                tick={{ fill: COLORS.muted, fontSize: 12 }} tickFormatter={(v) => `${v}%`} />
+              <Tooltip {...TOOLTIP_STYLE}
+                formatter={(value: number, name: string) =>
+                  name === 'Taxa' ? [formatPct(value), name] : [formatNumber(value), name]} />
               <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
-              <Bar
-                yAxisId="left"
-                dataKey="leadsRecebidos"
-                name="Leads Recebidos"
-                fill={COLORS.purple}
-                radius={[4, 4, 0, 0]}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="taxa"
-                name="Taxa"
-                stroke={COLORS.gold}
-                strokeWidth={2}
-                dot={{ r: 4, fill: COLORS.gold }}
-              />
+              <Bar yAxisId="left" dataKey="leadsRecebidos" name="Leads Recebidos" fill={COLORS.purple}
+                radius={[4, 4, 0, 0]} />
+              <Line yAxisId="right" type="monotone" dataKey="taxa" name="Taxa" stroke={COLORS.gold}
+                strokeWidth={2} dot={{ r: 4, fill: COLORS.gold }} />
             </ComposedChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      {/* B — Conversão para venda (placeholder) */}
+      {/* B — placeholder */}
       <div>
-        <h2 className="text-lg font-semibold text-foreground mb-1">
-          B — Conversão para Venda
-        </h2>
+        <h2 className="text-lg font-semibold text-foreground mb-1">B — Conversão para Venda</h2>
         <div className="card-glass p-8 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">
             Em breve — depende de dados de fechamento.
