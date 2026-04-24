@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { BI_PLATFORM_ID, BI_ROLE_LABELS, type BIRole } from '@/lib/roles';
-import { Loader2, Search, Save, X, Shield, ShieldCheck, UserCheck, UserX, RefreshCw } from 'lucide-react';
+import { Loader2, Search, Save, X, Shield, ShieldCheck, UserCheck, UserX, RefreshCw, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AdminUser {
@@ -140,6 +140,29 @@ export default function AdminUsers() {
       toast.success('Usuário atualizado');
       setEditingId(null);
       setDraft({});
+    },
+    onError: (err: any) => toast.error(`Erro: ${err.message ?? err}`),
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sessão expirada');
+      const { data, error } = await supabase.functions.invoke('admin-invite-user', {
+        body: { email },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (error) throw error;
+      if (!(data as any)?.success) throw new Error((data as any)?.error ?? 'Falha no envio');
+      return data as { mode: 'invite' | 'recovery'; email: string };
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success(
+        data.mode === 'invite'
+          ? `Convite enviado para ${data.email}`
+          : `Link de redefinição enviado para ${data.email}`,
+      );
     },
     onError: (err: any) => toast.error(`Erro: ${err.message ?? err}`),
   });
@@ -449,9 +472,28 @@ export default function AdminUsers() {
                         </button>
                       </div>
                     ) : (
-                      <button onClick={() => startEdit(u)} className="text-xs text-primary hover:underline">
-                        Editar
-                      </button>
+                      <div className="flex gap-2 justify-end items-center">
+                        <button
+                          onClick={() => {
+                            const label = u.auth_user_id ? 'redefinição de senha' : 'convite';
+                            if (confirm(`Enviar ${label} para ${u.email}?`)) {
+                              inviteMutation.mutate(u.email);
+                            }
+                          }}
+                          disabled={inviteMutation.isPending}
+                          className="p-1.5 rounded hover:bg-primary/20 text-primary disabled:opacity-50"
+                          title={u.auth_user_id ? 'Enviar link de redefinição de senha' : 'Enviar convite para criar senha'}
+                        >
+                          {inviteMutation.isPending && inviteMutation.variables === u.email ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Mail size={14} />
+                          )}
+                        </button>
+                        <button onClick={() => startEdit(u)} className="text-xs text-primary hover:underline">
+                          Editar
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
