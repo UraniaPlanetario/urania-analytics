@@ -25,16 +25,25 @@ Este **não é um campo nativo do Kommo** — é derivado pela função `gold.re
 
 | Ordem | Valor | Condição |
 |---|---|---|
-| 1º | `'Cancelado'` | `custom_fields.'Cancelado (Onboarding)' = 'Sim'` |
+| 1º | `'Cancelado'` | `custom_fields.'Cancelado (Onboarding)' = 'Sim'` **E** `data_cancelamento > data_de_fechamento` (ou `data_de_fechamento IS NULL`) — ver regra v2 abaixo |
 | 2º | `'Venda Fechada'` | `pipeline_name IN ('Onboarding Escolas', 'Onboarding SME', 'Financeiro', 'Clientes - CS', 'Shopping Fechados')` **E** `custom_fields.'Data de Fechamento' IS NOT NULL` |
 | 3º | `'Venda Perdida'` | `status_name ILIKE '%perdida%' OR status_name ILIKE '%lost%'` |
 | 4º | `'Em andamento'` | Fallback — nenhuma das anteriores |
+
+**Regra v2 (migration 024, 2026-04-24):** o cancelamento só "prende" o lead se for posterior ao último fechamento. Se o lead cancelou e depois fechou de novo (nova venda para o mesmo cliente), a Venda Fechada mais recente prevalece. Leads cancelados que ganham uma nova `Data de Fechamento` maior que a `Data cancelamento` entram como `'Venda Fechada'` normalmente.
 
 SQL real da `refresh_leads_consolidado`:
 
 ```sql
 CASE
   WHEN l.custom_fields->>'Cancelado (Onboarding)' = 'Sim'
+    AND (l.custom_fields->>'Data cancelamento') ~ '^\d{9,10}$'
+    AND (
+      (l.custom_fields->>'Data de Fechamento') IS NULL
+      OR NOT ((l.custom_fields->>'Data de Fechamento') ~ '^\d{9,10}$')
+      OR to_timestamp((l.custom_fields->>'Data cancelamento')::bigint)
+         > to_timestamp((l.custom_fields->>'Data de Fechamento')::bigint)
+    )
     THEN 'Cancelado'
   WHEN l.pipeline_name IN ('Onboarding Escolas','Onboarding SME','Financeiro','Clientes - CS','Shopping Fechados')
     AND l.custom_fields->>'Data de Fechamento' IS NOT NULL
@@ -47,8 +56,8 @@ END AS status_lead
 
 **Observações importantes:**
 
-- **Leads cancelados são excluídos de fechamentos e diárias.** Mesmo que a venda tenha sido efetivada antes do cancelamento, um lead com `custom_fields.'Cancelado (Onboarding)' = 'Sim'` é classificado como `'Cancelado'` e não conta como `'Venda Fechada'`. Os blocos "Fechamentos" e "Diárias" do Desempenho Vendedor mostram um aviso visível sobre essa exclusão.
-- **Um lead cancelado que tem `Data de Fechamento` preenchida ainda é `'Cancelado'`**, nunca `'Venda Fechada'` — a cláusula 1 tem precedência.
+- **Leads cancelados são excluídos de fechamentos e diárias.** Um lead com `'Cancelado (Onboarding)' = 'Sim'` E `data_cancelamento > data_de_fechamento` é classificado como `'Cancelado'` e não conta como `'Venda Fechada'`. Os blocos "Fechamentos" e "Diárias" do Desempenho Vendedor mostram um aviso visível sobre essa exclusão.
+- **Lead cancelado que depois fechou de novo é `'Venda Fechada'`**. Ex: `data_cancelamento = 2025-10-22`, `data_de_fechamento = 2026-04-09` → Venda Fechada (fechamento é posterior). A coluna booleana `cancelado` continua `true` (flag histórico preservado).
 - **`Data de Fechamento`** é um custom field editado manualmente pelo time (não é `closed_at` nativo do Kommo). Ver [Sobre `data_de_fechamento`](#sobre-data_de_fechamento).
 - **`status_name`** é o estágio atual (ex.: `'Negociação'`, `'Lost'`, `'Venda perdida'`) — o `ILIKE '%perdida%'` é proposital para pegar variações de nomenclatura.
 - **"Venda Fechada" exige ambas as condições**: estar em pipeline de pós-venda **E** ter Data de Fechamento. Se só está no funil mas sem a data, fica `'Em andamento'`; se só tem a data mas está em outro funil, também.
