@@ -13,7 +13,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { MovimentoLead, SDR, formatNumber, formatPct, isQualificadoSDRById } from '../types';
-import { useLeadsSDRMap } from '../hooks/useDesempenhoSDR';
+import { useLeadsSDRMap, useLeadsFechados } from '../hooks/useDesempenhoSDR';
 import { TOOLTIP_STYLE, COLORS } from './_helpers';
 
 interface Props {
@@ -53,6 +53,7 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
   const sdrNames = useMemo(() => new Set(sdrs.map((s) => s.nome)), [sdrs]);
   const [canal, setCanal] = useState<Canal>('geral');
   const { data: sdrMap } = useLeadsSDRMap();
+  const { data: leadsFechados } = useLeadsFechados();
 
   // Classifica cada lead: qual é o canal onde ele foi CRIADO.
   // Pré-requisito do prop `movimentos`: já vem filtrado por lead_created_at no período
@@ -215,6 +216,42 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
   const taxaGeral = totalRecebidos > 0 ? (totalQualificados / totalRecebidos) * 100 : 0;
   const taxaSdr = totalRecebidosComSdr > 0 ? (totalQualificadosSdr / totalRecebidosComSdr) * 100 : 0;
 
+  // ── Conversão para Venda ────────────────────────────────────────────────────
+  // Conversão por canal — só faz sentido na aba Geral
+  const conversaoPorCanal = useMemo(() => {
+    if (!leadsFechados) return [];
+    const calc = (s: Set<number>) => {
+      let fechados = 0;
+      for (const id of s) if (leadsFechados.has(id)) fechados++;
+      return { recebidos: s.size, fechados, taxa: s.size > 0 ? (fechados / s.size) * 100 : 0 };
+    };
+    const i = calc(stats.insta.leadsRecebidos);
+    const w = calc(stats.whatsapp.leadsRecebidos);
+    return [
+      { canal: 'Instagram', ...i },
+      { canal: 'WhatsApp', ...w },
+    ];
+  }, [stats, leadsFechados]);
+
+  // Conversão por SDR no canal ativo
+  const conversaoPorSdr = useMemo(() => {
+    if (!leadsFechados) return [];
+    const sdrs = Object.entries(atual.recebidosPorSdr);
+    return sdrs
+      .map(([sdr, ids]) => {
+        let fechados = 0;
+        for (const id of ids) if (leadsFechados.has(id)) fechados++;
+        return {
+          sdr,
+          atribuidos: ids.size,
+          fechados,
+          taxa: ids.size > 0 ? (fechados / ids.size) * 100 : 0,
+        };
+      })
+      .filter((r) => r.atribuidos > 0)
+      .sort((a, b) => b.taxa - a.taxa);
+  }, [atual, leadsFechados]);
+
   const taxaPorSdr = useMemo(() => {
     // Inclui todos os SDRs que tiveram leads atribuídos (mesmo com 0 qualificações)
     const sdrs = new Set<string>([
@@ -370,13 +407,68 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
         )}
       </div>
 
-      {/* B — placeholder */}
+      {/* B — Conversão para Venda */}
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-1">B — Conversão para Venda</h2>
-        <div className="card-glass p-8 rounded-xl text-center">
-          <p className="text-sm text-muted-foreground">
-            Em breve — depende de dados de fechamento.
-          </p>
+        <p className="text-xs text-muted-foreground mb-4">
+          Conversão = leads recebidos no canal/SDR que viraram <code>Venda Fechada</code> em algum momento.
+        </p>
+
+        {/* Por canal — só aba Geral */}
+        {canal === 'geral' && (
+          <div className="card-glass p-4 rounded-xl mb-4">
+            <h3 className="text-base font-semibold text-foreground mb-4">Conversão para Venda por Canal</h3>
+            {conversaoPorCanal.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Sem dados.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={conversaoPorCanal} layout="vertical" margin={{ left: 30, right: 100, top: 10, bottom: 10 }}>
+                  <CartesianGrid stroke="hsl(240, 4%, 16%)" horizontal={false} />
+                  <XAxis type="number" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }}
+                    tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                  <YAxis type="category" dataKey="canal" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }} width={90} />
+                  <Tooltip {...TOOLTIP_STYLE}
+                    formatter={(value: number, _n: string, p: any) =>
+                      [`${formatPct(value)} — ${formatNumber(p.payload.fechados)} de ${formatNumber(p.payload.recebidos)}`, 'Conversão']} />
+                  <Bar dataKey="taxa" fill={COLORS.purple} radius={[0, 4, 4, 0]}>
+                    <LabelList dataKey="taxa" position="right" fill={COLORS.muted} fontSize={11} fontWeight={600}
+                      formatter={(v: number) => formatPct(v)} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        )}
+
+        {/* Por SDR — em todas as abas */}
+        <div className="card-glass p-4 rounded-xl">
+          <div className="flex items-start justify-between mb-4 gap-4">
+            <h3 className="text-base font-semibold text-foreground">Conversão para Venda por SDR</h3>
+            <p className="text-[11px] text-muted-foreground italic text-right max-w-md">
+              fechados_do_sdr / leads_atribuídos_ao_sdr (denominador individual). "Fechado" = lead com <code>status_lead='Venda Fechada'</code>.
+            </p>
+          </div>
+          {conversaoPorSdr.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Nenhum SDR com leads atribuídos no período neste canal.
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={Math.max(240, conversaoPorSdr.length * 36)}>
+              <BarChart data={conversaoPorSdr} layout="vertical" margin={{ left: 20, right: 110, top: 10, bottom: 10 }}>
+                <CartesianGrid stroke="hsl(240, 4%, 16%)" horizontal={false} />
+                <XAxis type="number" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }}
+                  tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                <YAxis type="category" dataKey="sdr" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }} width={120} />
+                <Tooltip {...TOOLTIP_STYLE}
+                  formatter={(value: number, _n: string, p: any) =>
+                    [`${formatPct(value)} — ${formatNumber(p.payload.fechados)} de ${formatNumber(p.payload.atribuidos)}`, 'Conversão']} />
+                <Bar dataKey="taxa" fill={COLORS.purple} radius={[0, 4, 4, 0]}>
+                  <LabelList dataKey="taxa" position="right" fill={COLORS.muted} fontSize={11} fontWeight={600}
+                    formatter={(v: number) => formatPct(v)} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>

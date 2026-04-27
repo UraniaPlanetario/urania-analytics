@@ -274,6 +274,33 @@ export function useMovimentosQualificacao(dateFrom: string | null, dateTo: strin
   });
 }
 
+/** Set com id de leads que têm status_lead='Venda Fechada' (qualquer período). */
+export function useLeadsFechados() {
+  return useQuery<Set<number>>({
+    queryKey: ['leads_fechados_set'],
+    queryFn: async () => {
+      const set = new Set<number>();
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .schema('gold')
+          .from('cubo_leads_consolidado')
+          .select('id_lead')
+          .eq('status_lead', 'Venda Fechada')
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const r of data as { id_lead: number }[]) set.add(r.id_lead);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return set;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
 /** Mapa lead_id → SDR (custom field). Usado pra atribuir qualificações ao SDR correto. */
 export function useLeadsSDRMap() {
   return useQuery<Map<number, string>>({
