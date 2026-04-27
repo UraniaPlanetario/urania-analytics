@@ -37,7 +37,8 @@ interface CanalStats {
   leadsRecebidosComSdr: Set<number>;       // recebidos com custom field SDR preenchido
   leadsQualificados: Set<number>;          // qualquer marco de qualificação (auto + manual)
   leadsQualificadosSdr: Set<number>;       // qualif manual feita por SDR + lead com SDR no CF
-  qualPorSdr: Record<string, Set<number>>;
+  qualPorSdr: Record<string, Set<number>>;            // qualificados manuais com SDR no CF
+  recebidosPorSdr: Record<string, Set<number>>;        // recebidos atribuídos ao SDR (denominador individual)
   serieMensal: Array<{
     mes: string;
     leadsRecebidos: number;
@@ -114,7 +115,16 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
       for (const id of qualificadosSdr) if (leadsSet.has(id)) qSdrSet.add(id);
       // Denominador "SDR" — leads recebidos com SDR no CF
       const recebidosComSdr = new Set<number>();
-      for (const id of leadsSet) if (sdrMap?.get(id)) recebidosComSdr.add(id);
+      // E denominador individual por SDR — leads recebidos atribuídos a cada SDR
+      const recebidosPorSdr: Record<string, Set<number>> = {};
+      for (const id of leadsSet) {
+        const sdr = sdrMap?.get(id);
+        if (sdr && sdrNames.has(sdr)) {
+          recebidosComSdr.add(id);
+          if (!recebidosPorSdr[sdr]) recebidosPorSdr[sdr] = new Set();
+          recebidosPorSdr[sdr].add(id);
+        }
+      }
       const qSdr: Record<string, Set<number>> = {};
       for (const [sdr, ids] of Object.entries(qualPorSdrAll)) {
         const inter = new Set<number>();
@@ -185,6 +195,7 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
         leadsQualificados: qGeral,
         leadsQualificadosSdr: qSdrSet,
         qualPorSdr: qSdr,
+        recebidosPorSdr,
         serieMensal,
       };
     };
@@ -205,15 +216,26 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
   const taxaSdr = totalRecebidosComSdr > 0 ? (totalQualificadosSdr / totalRecebidosComSdr) * 100 : 0;
 
   const taxaPorSdr = useMemo(() => {
-    return Object.entries(atual.qualPorSdr)
-      .map(([sdr, ids]) => ({
-        sdr,
-        qualificados: ids.size,
-        // Denominador da taxa por SDR = leads recebidos com SDR no canal
-        taxa: totalRecebidosComSdr > 0 ? (ids.size / totalRecebidosComSdr) * 100 : 0,
-      }))
+    // Inclui todos os SDRs que tiveram leads atribuídos (mesmo com 0 qualificações)
+    const sdrs = new Set<string>([
+      ...Object.keys(atual.qualPorSdr),
+      ...Object.keys(atual.recebidosPorSdr),
+    ]);
+    return Array.from(sdrs)
+      .map((sdr) => {
+        const qualif = atual.qualPorSdr[sdr]?.size ?? 0;
+        const atribuidos = atual.recebidosPorSdr[sdr]?.size ?? 0;
+        return {
+          sdr,
+          qualificados: qualif,
+          atribuidos,
+          // Taxa individual = qualificou / leads que recebeu (denominador específico)
+          taxa: atribuidos > 0 ? (qualif / atribuidos) * 100 : 0,
+        };
+      })
+      .filter((r) => r.atribuidos > 0)
       .sort((a, b) => b.taxa - a.taxa);
-  }, [atual, totalRecebidosComSdr]);
+  }, [atual]);
 
   return (
     <div className="space-y-6">
@@ -284,29 +306,29 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
         </div>
       </div>
 
-      {/* Taxa de Qualificação por SDR */}
+      {/* Taxa individual por SDR */}
       <div className="card-glass p-4 rounded-xl">
         <div className="flex items-start justify-between mb-4 gap-4">
           <h3 className="text-base font-semibold text-foreground">Taxa de Qualificação por SDR</h3>
           <p className="text-[11px] text-muted-foreground italic text-right max-w-md">
-            qualificados_do_sdr / leads_recebidos_no_canal. Atribuição usa o custom field <code>SDR</code> do lead (não <code>moved_by</code>).
+            qualificados_do_sdr / leads_atribuídos_ao_sdr (denominador individual). Atribuição vem do custom field <code>SDR</code> do lead.
           </p>
         </div>
         {taxaPorSdr.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
-            Nenhum SDR qualificou leads no período neste canal.
+            Nenhum SDR teve leads atribuídos no período neste canal.
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(240, taxaPorSdr.length * 36)}>
-            <BarChart data={taxaPorSdr} layout="vertical" margin={{ left: 20, right: 80, top: 10, bottom: 10 }}>
+            <BarChart data={taxaPorSdr} layout="vertical" margin={{ left: 20, right: 110, top: 10, bottom: 10 }}>
               <CartesianGrid stroke="hsl(240, 4%, 16%)" horizontal={false} />
               <XAxis type="number" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }}
-                tickFormatter={(v) => `${v}%`} />
+                tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
               <YAxis type="category" dataKey="sdr" stroke={COLORS.muted} tick={{ fill: COLORS.muted, fontSize: 12 }}
                 width={120} />
               <Tooltip {...TOOLTIP_STYLE}
                 formatter={(value: number, _n: string, p: any) =>
-                  [`${formatPct(value)} (${formatNumber(p.payload.qualificados)} leads)`, 'Taxa']} />
+                  [`${formatPct(value)} — ${formatNumber(p.payload.qualificados)} de ${formatNumber(p.payload.atribuidos)}`, 'Taxa']} />
               <Bar dataKey="taxa" fill={COLORS.green} radius={[0, 4, 4, 0]}>
                 <LabelList dataKey="taxa" position="right" fill={COLORS.muted} fontSize={11} fontWeight={600}
                   formatter={(v: number) => formatPct(v)} />
