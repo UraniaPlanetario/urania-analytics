@@ -33,10 +33,19 @@ const CANAIS: { id: Canal; label: string }[] = [
 ];
 
 interface CanalStats {
-  leadsRecebidos: Set<number>;
-  leadsQualificados: Set<number>;
+  leadsRecebidos: Set<number>;             // leads criados no canal no período
+  leadsRecebidosComSdr: Set<number>;       // recebidos com custom field SDR preenchido
+  leadsQualificados: Set<number>;          // qualquer marco de qualificação (auto + manual)
+  leadsQualificadosSdr: Set<number>;       // qualif manual feita por SDR + lead com SDR no CF
   qualPorSdr: Record<string, Set<number>>;
-  serieMensal: Array<{ mes: string; leadsRecebidos: number; leadsQualificados: number; taxa: number }>;
+  serieMensal: Array<{
+    mes: string;
+    leadsRecebidos: number;
+    leadsQualificados: number;
+    leadsQualificadosSdr: number;
+    taxaGeral: number;
+    taxaSdr: number;
+  }>;
 }
 
 export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
@@ -72,31 +81,40 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
     }
     const geral = new Set<number>([...insta, ...whatsapp]);
 
-    // Movimentos de qualificação (os mesmos para qualquer canal)
+    // Marcos de qualificação (inclui automática)
     const isQualMov = (m: MovimentoLead) =>
       (m.pipeline_from === RECEPCAO && m.pipeline_to === VENDAS_WPP) ||
       isQualificadoSDRById(m.status_to_id);
 
-    // Lead qualificado → SDR via custom field (cubo_leads_consolidado.sdr).
-    // Se o lead não tem SDR preenchido, fica fora do cômputo "por SDR".
-    const qualificados = new Set<number>();            // todos qualificados (inclui sem SDR)
-    const qualificadosComSdr = new Set<number>();       // qualificados com SDR identificado
+    // Qualificação POR SDR exige 2 condições:
+    //   (a) movimentação manual para o marco — moved_by é um SDR humano
+    //   (b) o lead tem o custom field SDR preenchido (cubo_leads_consolidado.sdr)
+    const qualificados = new Set<number>();             // qualquer marco (auto + manual)
+    const qualificadosSdr = new Set<number>();          // (a) ∧ (b)
     const qualPorSdrAll: Record<string, Set<number>> = {};
     for (const m of movimentos) {
       if (!isQualMov(m)) continue;
       qualificados.add(m.lead_id);
-      const sdr = sdrMap?.get(m.lead_id);
-      if (sdr && sdrNames.has(sdr)) {
-        qualificadosComSdr.add(m.lead_id);
-        if (!qualPorSdrAll[sdr]) qualPorSdrAll[sdr] = new Set();
-        qualPorSdrAll[sdr].add(m.lead_id);
+      const sdrCustomField = sdrMap?.get(m.lead_id);
+      const movedByIsSdr = m.moved_by != null && sdrNames.has(m.moved_by);
+      if (sdrCustomField && sdrNames.has(sdrCustomField) && movedByIsSdr) {
+        qualificadosSdr.add(m.lead_id);
+        // Atribui pelo custom field SDR (não pelo moved_by) — Julia
+        if (!qualPorSdrAll[sdrCustomField]) qualPorSdrAll[sdrCustomField] = new Set();
+        qualPorSdrAll[sdrCustomField].add(m.lead_id);
       }
     }
 
     const build = (leadsSet: Set<number>): CanalStats => {
-      // Numerador: apenas qualificações com SDR identificado (gráfico de desempenho de SDRs)
-      const q = new Set<number>();
-      for (const id of qualificadosComSdr) if (leadsSet.has(id)) q.add(id);
+      // Numerador "geral" — todos qualificados (auto + manual) que estão na base do canal
+      const qGeral = new Set<number>();
+      for (const id of qualificados) if (leadsSet.has(id)) qGeral.add(id);
+      // Numerador "SDR" — apenas qualificados manuais com SDR no CF
+      const qSdrSet = new Set<number>();
+      for (const id of qualificadosSdr) if (leadsSet.has(id)) qSdrSet.add(id);
+      // Denominador "SDR" — leads recebidos com SDR no CF
+      const recebidosComSdr = new Set<number>();
+      for (const id of leadsSet) if (sdrMap?.get(id)) recebidosComSdr.add(id);
       const qSdr: Record<string, Set<number>> = {};
       for (const [sdr, ids] of Object.entries(qualPorSdrAll)) {
         const inter = new Set<number>();
@@ -121,33 +139,54 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
       }
 
       // Qualificados por mês (mesmo mês de criação do lead)
-      const qualPorMes: Record<string, Set<number>> = {};
+      const qualGeralPorMes: Record<string, Set<number>> = {};
+      const qualSdrPorMes: Record<string, Set<number>> = {};
       for (const m of movimentos) {
         if (!isQualMov(m)) continue;
         if (!leadsSet.has(m.lead_id)) continue;
-        if (!qualificadosComSdr.has(m.lead_id)) continue;
         const created = createdByLead.get(m.lead_id);
         if (!created) continue;
         const d = new Date(created);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        if (!qualPorMes[key]) qualPorMes[key] = new Set();
-        qualPorMes[key].add(m.lead_id);
+        if (!qualGeralPorMes[key]) qualGeralPorMes[key] = new Set();
+        qualGeralPorMes[key].add(m.lead_id);
+        if (qualificadosSdr.has(m.lead_id)) {
+          if (!qualSdrPorMes[key]) qualSdrPorMes[key] = new Set();
+          qualSdrPorMes[key].add(m.lead_id);
+        }
       }
-      const keys = new Set([...Object.keys(recebidosPorMes), ...Object.keys(qualPorMes)]);
+      const keys = new Set([
+        ...Object.keys(recebidosPorMes),
+        ...Object.keys(qualGeralPorMes),
+        ...Object.keys(qualSdrPorMes),
+      ]);
       const serieMensal = Array.from(keys)
         .sort()
         .map((key) => {
           const rec = recebidosPorMes[key]?.size || 0;
-          const qual = qualPorMes[key]?.size || 0;
+          const qg = qualGeralPorMes[key]?.size || 0;
+          const qs = qualSdrPorMes[key]?.size || 0;
+          // Recebidos com SDR no mês — pra denominador da taxa SDR mensal
+          let recComSdr = 0;
+          for (const id of recebidosPorMes[key] || []) if (sdrMap?.get(id)) recComSdr++;
           return {
             mes: key,
             leadsRecebidos: rec,
-            leadsQualificados: qual,
-            taxa: rec > 0 ? (qual / rec) * 100 : 0,
+            leadsQualificados: qg,
+            leadsQualificadosSdr: qs,
+            taxaGeral: rec > 0 ? (qg / rec) * 100 : 0,
+            taxaSdr: recComSdr > 0 ? (qs / recComSdr) * 100 : 0,
           };
         });
 
-      return { leadsRecebidos: leadsSet, leadsQualificados: q, qualPorSdr: qSdr, serieMensal };
+      return {
+        leadsRecebidos: leadsSet,
+        leadsRecebidosComSdr: recebidosComSdr,
+        leadsQualificados: qGeral,
+        leadsQualificadosSdr: qSdrSet,
+        qualPorSdr: qSdr,
+        serieMensal,
+      };
     };
 
     return {
@@ -158,19 +197,23 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
   }, [movimentos, sdrNames, sdrMap]);
 
   const atual = stats[canal];
-  const total = atual.leadsRecebidos.size;
-  const qualificados = atual.leadsQualificados.size;
-  const taxa = total > 0 ? (qualificados / total) * 100 : 0;
+  const totalRecebidos = atual.leadsRecebidos.size;
+  const totalRecebidosComSdr = atual.leadsRecebidosComSdr.size;
+  const totalQualificados = atual.leadsQualificados.size;
+  const totalQualificadosSdr = atual.leadsQualificadosSdr.size;
+  const taxaGeral = totalRecebidos > 0 ? (totalQualificados / totalRecebidos) * 100 : 0;
+  const taxaSdr = totalRecebidosComSdr > 0 ? (totalQualificadosSdr / totalRecebidosComSdr) * 100 : 0;
 
   const taxaPorSdr = useMemo(() => {
     return Object.entries(atual.qualPorSdr)
       .map(([sdr, ids]) => ({
         sdr,
         qualificados: ids.size,
-        taxa: total > 0 ? (ids.size / total) * 100 : 0,
+        // Denominador da taxa por SDR = leads recebidos com SDR no canal
+        taxa: totalRecebidosComSdr > 0 ? (ids.size / totalRecebidosComSdr) * 100 : 0,
       }))
       .sort((a, b) => b.taxa - a.taxa);
-  }, [atual, total]);
+  }, [atual, totalRecebidosComSdr]);
 
   return (
     <div className="space-y-6">
@@ -202,28 +245,42 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs — 2 taxas + 3 contadores */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="card-glass p-4 rounded-xl text-center">
+          <p className="text-sm text-muted-foreground">Taxa de Qualificação Geral</p>
+          <p className="text-4xl font-bold text-foreground">{formatPct(taxaGeral)}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {formatNumber(totalQualificados)} qualif (auto + manual) / {formatNumber(totalRecebidos)} recebidos
+          </p>
+        </div>
+        <div className="card-glass p-4 rounded-xl text-center">
+          <p className="text-sm text-muted-foreground">Taxa de Qualificação SDR</p>
+          <p className="text-4xl font-bold text-foreground">{formatPct(taxaSdr)}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {formatNumber(totalQualificadosSdr)} qualif manual c/ SDR / {formatNumber(totalRecebidosComSdr)} atribuídos a SDR
+          </p>
+        </div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card-glass p-4 rounded-xl text-center">
-          <p className="text-sm text-muted-foreground">Taxa de Qualificação</p>
-          <p className="text-4xl font-bold text-foreground">{formatPct(taxa)}</p>
+          <p className="text-sm text-muted-foreground">Total de Leads Recebidos</p>
+          <p className="text-3xl font-bold text-foreground">{formatNumber(totalRecebidos)}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {formatNumber(qualificados)} de {formatNumber(total)} leads
+            {canal === 'insta' && 'Criados em Recepção Leads Insta'}
+            {canal === 'whatsapp' && 'Criados em Vendas WhatsApp'}
+            {canal === 'geral' && 'Soma Insta + WhatsApp'}
           </p>
         </div>
         <div className="card-glass p-4 rounded-xl text-center">
-          <p className="text-sm text-muted-foreground">Leads Recebidos</p>
-          <p className="text-4xl font-bold text-foreground">{formatNumber(total)}</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {canal === 'insta' && 'Leads criados em Recepção Leads Insta'}
-            {canal === 'whatsapp' && 'Leads criados em Vendas WhatsApp'}
-            {canal === 'geral' && 'Soma Insta + WhatsApp (leads criados no canal)'}
-          </p>
+          <p className="text-sm text-muted-foreground">Total de Leads Qualificados</p>
+          <p className="text-3xl font-bold text-foreground">{formatNumber(totalQualificados)}</p>
+          <p className="text-xs text-muted-foreground mt-1">Inclui automações + manuais</p>
         </div>
         <div className="card-glass p-4 rounded-xl text-center">
-          <p className="text-sm text-muted-foreground">Leads Qualificados por SDR</p>
-          <p className="text-4xl font-bold text-foreground">{formatNumber(qualificados)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Qualificados com SDR identificado no custom field</p>
+          <p className="text-sm text-muted-foreground">Total de Qualificados por SDR</p>
+          <p className="text-3xl font-bold text-foreground">{formatNumber(totalQualificadosSdr)}</p>
+          <p className="text-xs text-muted-foreground mt-1">Manual + custom field SDR preenchido</p>
         </div>
       </div>
 
@@ -262,7 +319,7 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
       {/* Série mensal */}
       <div className="card-glass p-4 rounded-xl">
         <h3 className="text-base font-semibold text-foreground mb-4">
-          Evolução Mensal — Taxa e Leads Recebidos
+          Evolução Mensal — Leads Recebidos + Taxas (Geral e SDR)
         </h3>
         {atual.serieMensal.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">Sem dados no período selecionado.</p>
@@ -275,13 +332,17 @@ export function Bloco5Qualificacao({ movimentos, sdrs }: Props) {
               <YAxis yAxisId="right" orientation="right" stroke={COLORS.muted}
                 tick={{ fill: COLORS.muted, fontSize: 12 }} tickFormatter={(v) => `${v}%`} />
               <Tooltip {...TOOLTIP_STYLE}
-                formatter={(value: number, name: string) =>
-                  name === 'Taxa' ? [formatPct(value), name] : [formatNumber(value), name]} />
+                formatter={(value: number, name: string) => {
+                  if (name === 'Taxa Geral' || name === 'Taxa SDR') return [formatPct(value), name];
+                  return [formatNumber(value), name];
+                }} />
               <Legend wrapperStyle={{ fontSize: 12, color: COLORS.muted }} />
               <Bar yAxisId="left" dataKey="leadsRecebidos" name="Leads Recebidos" fill={COLORS.purple}
                 radius={[4, 4, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="taxa" name="Taxa" stroke={COLORS.gold}
+              <Line yAxisId="right" type="monotone" dataKey="taxaGeral" name="Taxa Geral" stroke={COLORS.gold}
                 strokeWidth={2} dot={{ r: 4, fill: COLORS.gold }} />
+              <Line yAxisId="right" type="monotone" dataKey="taxaSdr" name="Taxa SDR" stroke={COLORS.green}
+                strokeWidth={2} dot={{ r: 4, fill: COLORS.green }} />
             </ComposedChart>
           </ResponsiveContainer>
         )}
