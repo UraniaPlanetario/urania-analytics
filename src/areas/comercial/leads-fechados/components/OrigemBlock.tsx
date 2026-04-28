@@ -115,12 +115,13 @@ export function OrigemBlock({ filters }: Props) {
     const receita = ativos.reduce((s, l) => s + (l.lead_price || 0), 0);
     const totalDiarias = ativos.reduce((s, l) => s + diariasOf(l), 0);
     const ticketMedio = totalDiarias > 0 ? receita / totalDiarias : 0;
-    // KPI geral usa o tempo bruto: criação → fechamento (mesmo cálculo pra todos
-    // os caminhos, comparável). Os cards por caminho usam o tempo "canônico"
-    // (tempo_dias_caminho), que difere apenas pra Recorrente.
-    const temposValidos = ativos.filter((l) => l.tempo_dias_total != null);
+    // Tempo médio usa o "tempo canônico do caminho" (tempo_dias_caminho) — pra
+    // Direto/Reativada/Resgate é criação→fechamento; pra Recorrente é fim do
+    // atendimento anterior→fechamento. Garante que o KPI geral bate com os
+    // cards de caminho quando o usuário filtra por classificação específica.
+    const temposValidos = ativos.filter((l) => l.tempo_dias_caminho != null);
     const tempoMedio = temposValidos.length > 0
-      ? temposValidos.reduce((s, l) => s + (l.tempo_dias_total ?? 0), 0) / temposValidos.length
+      ? temposValidos.reduce((s, l) => s + (l.tempo_dias_caminho ?? 0), 0) / temposValidos.length
       : 0;
     return { total, totalDiarias, receita, ticketMedio, tempoMedio };
   }, [leads]);
@@ -212,7 +213,7 @@ export function OrigemBlock({ filters }: Props) {
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Tempo Médio</p>
           <p className="text-3xl font-bold text-foreground">{stats.tempoMedio.toFixed(1)} <span className="text-lg font-normal text-muted-foreground">dias</span></p>
-          <p className="text-[10px] text-muted-foreground/70 mt-1">Da criação do lead ao fechamento</p>
+          <p className="text-[10px] text-muted-foreground/70 mt-1">Tempo do caminho de cada lead até fechar</p>
         </div>
       </div>
 
