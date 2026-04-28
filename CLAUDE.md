@@ -43,6 +43,7 @@ Sync diário orquestrado por `pg_cron` disparando edge functions via `pg_net`. V
 | Rota | Nome | Status | Doc |
 |---|---|---|---|
 | `/comercial/qualidade` | Qualidade de Atendimento | ✅ produção | [qualidade.md](docs/dashboards/qualidade.md) |
+| `/comercial/qualidade-sdr` | Qualidade SDR (cadência C1–C5) | ✅ produção | — |
 | `/comercial/leads-fechados` | Leads Fechados | ✅ produção | [leads-fechados.md](docs/dashboards/leads-fechados.md) |
 | `/comercial/campanhas` | Campanhas Semanais | ✅ produção | [campanhas-semanais.md](docs/dashboards/campanhas-semanais.md) |
 | `/financeiro/faturamento` | Faturamento | ✅ produção | [faturamento.md](docs/dashboards/faturamento.md) |

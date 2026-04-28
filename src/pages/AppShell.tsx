@@ -8,6 +8,7 @@ import LeadsFechados from '@/areas/comercial/leads-fechados/index';
 import Campanhas from '@/areas/comercial/campanhas/index';
 import DesempenhoVendedor from '@/areas/comercial/desempenho-vendedor/index';
 import DesempenhoSDR from '@/areas/comercial/desempenho-sdr/index';
+import QualidadeSDR from '@/areas/comercial/qualidade-sdr/index';
 import Faturamento from '@/areas/financeiro/index';
 import CalendarioAstronomos from '@/areas/onboarding/calendario-astronomos/index';
 import AreaPlaceholder from '@/areas/placeholder';
@@ -32,6 +33,7 @@ const protectedRoutes = [
   { path: '/comercial/campanhas', element: <Campanhas /> },
   { path: '/comercial/desempenho-vendedor', element: <DesempenhoVendedor /> },
   { path: '/comercial/desempenho-sdr', element: <DesempenhoSDR /> },
+  { path: '/comercial/qualidade-sdr', element: <QualidadeSDR /> },
   { path: '/marketing', element: <AreaPlaceholder title="Marketing" /> },
   { path: '/financeiro', element: <Faturamento /> },
   { path: '/onboarding', element: <AreaPlaceholder title="Onboarding" /> },

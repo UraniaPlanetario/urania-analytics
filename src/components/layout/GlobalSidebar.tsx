@@ -51,6 +51,7 @@ const COMERCIAL_AREA: AreaConfig = {
       path: '/comercial/qualidade-grp',
       children: [
         { id: 'qualidade', label: 'Qualidade de Fechamento', path: '/comercial/qualidade' },
+        { id: 'qualidade-sdr', label: 'Qualidade SDR', path: '/comercial/qualidade-sdr' },
         { id: 'monitoramento', label: 'Monitoramento de Usuário', path: '/comercial/monitoramento' },
       ],
     },

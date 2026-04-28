@@ -14,6 +14,7 @@ export interface DashboardEntry {
 
 export const DASHBOARDS: DashboardEntry[] = [
   { path: '/comercial/qualidade',          label: 'Qualidade de Fechamento',     icon: Target,     area: 'Comercial', description: 'Scores de qualidade e rankings por consultor' },
+  { path: '/comercial/qualidade-sdr',      label: 'Qualidade SDR',               icon: Target,     area: 'Comercial', description: 'Avaliação qualitativa da atuação dos SDRs em cada etapa de cadência' },
   { path: '/comercial/monitoramento',      label: 'Monitoramento de Usuário',    icon: Activity,   area: 'Comercial', description: 'Atividade diária, consistência CRM e percentis' },
   { path: '/comercial/desempenho-vendedor', label: 'Desempenho Vendedor',        icon: TrendingUp, area: 'Comercial', description: 'Fechamentos, diárias, faturamento e cancelamentos' },
   { path: '/comercial/desempenho-sdr',     label: 'Desempenho SDR',              icon: Users,      area: 'Comercial', description: 'MPA, qualificação e comissão' },
