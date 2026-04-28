@@ -23,6 +23,13 @@ function formatCurrency(v: number): string {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
+/** Ticket médio do projeto = receita / total de diárias (NÃO receita / qtd de leads).
+ *  Veja docs/business-rules.md e CLAUDE.md. */
+function diariasOf(l: LeadClosedOrigem): number {
+  const n = parseInt(l.n_diarias || '0', 10);
+  return isNaN(n) ? 0 : n;
+}
+
 const CAMINHOS_ORDER: CaminhoOrigem[] = ['Direto', 'Reativada', 'Resgate', 'Recorrente'];
 
 export function OrigemBlock({ filters }: Props) {
@@ -58,12 +65,13 @@ export function OrigemBlock({ filters }: Props) {
     const ativos = leads.filter((l) => !l.cancelado);
     const total = ativos.length;
     const receita = ativos.reduce((s, l) => s + (l.lead_price || 0), 0);
-    const ticketMedio = total > 0 ? receita / total : 0;
+    const totalDiarias = ativos.reduce((s, l) => s + diariasOf(l), 0);
+    const ticketMedio = totalDiarias > 0 ? receita / totalDiarias : 0;
     const temposValidos = ativos.filter((l) => l.tempo_dias_caminho != null);
     const tempoMedio = temposValidos.length > 0
       ? temposValidos.reduce((s, l) => s + (l.tempo_dias_caminho ?? 0), 0) / temposValidos.length
       : 0;
-    return { total, receita, ticketMedio, tempoMedio };
+    return { total, totalDiarias, receita, ticketMedio, tempoMedio };
   }, [leads]);
 
   const porCaminho = useMemo(() => {
@@ -72,27 +80,29 @@ export function OrigemBlock({ filters }: Props) {
       const items = ativos.filter((l) => l.caminho_origem === caminho);
       const qtd = items.length;
       const receita = items.reduce((s, l) => s + (l.lead_price || 0), 0);
-      const ticket = qtd > 0 ? receita / qtd : 0;
+      const diarias = items.reduce((s, l) => s + diariasOf(l), 0);
+      const ticket = diarias > 0 ? receita / diarias : 0;
       const tempos = items.filter((l) => l.tempo_dias_caminho != null);
       const tempoMedio = tempos.length > 0
         ? tempos.reduce((s, l) => s + (l.tempo_dias_caminho ?? 0), 0) / tempos.length
         : 0;
-      return { caminho, qtd, receita, ticket, tempoMedio };
+      return { caminho, qtd, receita, diarias, ticket, tempoMedio };
     });
   }, [leads]);
 
   const porCanal = useMemo(() => {
     const ativos = leads.filter((l) => !l.cancelado);
-    const map = new Map<string, { canal: string; qtd: number; receita: number }>();
+    const map = new Map<string, { canal: string; qtd: number; receita: number; diarias: number }>();
     for (const l of ativos) {
       const canal = normalizeCanal(l.canal_entrada);
-      if (!map.has(canal)) map.set(canal, { canal, qtd: 0, receita: 0 });
+      if (!map.has(canal)) map.set(canal, { canal, qtd: 0, receita: 0, diarias: 0 });
       const r = map.get(canal)!;
       r.qtd++;
       r.receita += l.lead_price || 0;
+      r.diarias += diariasOf(l);
     }
     return Array.from(map.values())
-      .map((r) => ({ ...r, ticket: r.qtd > 0 ? r.receita / r.qtd : 0 }))
+      .map((r) => ({ ...r, ticket: r.diarias > 0 ? r.receita / r.diarias : 0 }))
       .sort((a, b) => b.qtd - a.qtd);
   }, [leads]);
 
@@ -107,17 +117,21 @@ export function OrigemBlock({ filters }: Props) {
   return (
     <div className="space-y-6">
       {/* KPIs gerais */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Total Fechados</p>
           <p className="text-3xl font-bold text-foreground">{stats.total.toLocaleString('pt-BR')}</p>
+        </div>
+        <div className="card-glass p-4 rounded-xl text-center">
+          <p className="text-sm text-muted-foreground">Total de Diárias</p>
+          <p className="text-3xl font-bold text-foreground">{stats.totalDiarias.toLocaleString('pt-BR')}</p>
         </div>
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Receita</p>
           <p className="text-3xl font-bold text-foreground">{formatCurrency(stats.receita)}</p>
         </div>
         <div className="card-glass p-4 rounded-xl text-center">
-          <p className="text-sm text-muted-foreground">Ticket Médio</p>
+          <p className="text-sm text-muted-foreground" title="Receita / total de diárias">Ticket Médio</p>
           <p className="text-3xl font-bold text-foreground">{formatCurrency(stats.ticketMedio)}</p>
         </div>
         <div className="card-glass p-4 rounded-xl text-center">
@@ -147,7 +161,10 @@ export function OrigemBlock({ filters }: Props) {
               <p className="text-xs uppercase font-semibold tracking-wide" style={{ color: CAMINHO_COLORS[c.caminho] }}>
                 {c.caminho}
               </p>
-              <p className="text-2xl font-bold text-foreground mt-1">{c.qtd}</p>
+              <p className="text-2xl font-bold text-foreground mt-1">
+                {c.qtd}
+                <span className="text-xs font-normal text-muted-foreground ml-1">leads · {c.diarias} diárias</span>
+              </p>
               <p className="text-xs text-muted-foreground mt-2">
                 Ticket {formatCurrency(c.ticket)}<br/>
                 {c.tempoMedio.toFixed(1)} dias médios
@@ -240,8 +257,9 @@ export function OrigemBlock({ filters }: Props) {
                 <thead className="sticky top-0 bg-card border-b">
                   <tr>
                     <th className="text-left py-2 px-2 text-xs font-semibold text-muted-foreground">Canal</th>
-                    <th className="text-right py-2 px-2 text-xs font-semibold text-muted-foreground">Qtd</th>
-                    <th className="text-right py-2 px-2 text-xs font-semibold text-muted-foreground">Ticket</th>
+                    <th className="text-right py-2 px-2 text-xs font-semibold text-muted-foreground">Leads</th>
+                    <th className="text-right py-2 px-2 text-xs font-semibold text-muted-foreground">Diárias</th>
+                    <th className="text-right py-2 px-2 text-xs font-semibold text-muted-foreground" title="Receita / diárias">Ticket</th>
                     <th className="text-right py-2 px-2 text-xs font-semibold text-muted-foreground">Receita</th>
                   </tr>
                 </thead>
@@ -250,6 +268,7 @@ export function OrigemBlock({ filters }: Props) {
                     <tr key={c.canal} className="border-b border-border/40 hover:bg-accent/40">
                       <td className="py-1.5 px-2 truncate max-w-[200px]">{c.canal}</td>
                       <td className="py-1.5 px-2 text-right tabular-nums">{c.qtd}</td>
+                      <td className="py-1.5 px-2 text-right tabular-nums">{c.diarias}</td>
                       <td className="py-1.5 px-2 text-right tabular-nums">{formatCurrency(c.ticket)}</td>
                       <td className="py-1.5 px-2 text-right tabular-nums">{formatCurrency(c.receita)}</td>
                     </tr>
