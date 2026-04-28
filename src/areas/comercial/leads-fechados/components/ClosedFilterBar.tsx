@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay, isWithinInterval, setMonth, setYear } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, subWeeks, isSameMonth, isSameDay, isWithinInterval, setMonth, setYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { LeadClosed, ClosedFilters } from '../types';
@@ -241,6 +241,8 @@ function DateRangePicker({
 
   const today = new Date();
   const quickFilters = [
+    { label: 'Esta Semana', action: () => { applyQuick(startOfWeek(today), endOfWeek(today)); } },
+    { label: 'Última Semana', action: () => { const prev = subWeeks(today, 1); applyQuick(startOfWeek(prev), endOfWeek(prev)); } },
     { label: 'Este Mês', action: () => { applyQuick(startOfMonth(today), today); } },
     { label: 'Último Mês', action: () => { const prev = subMonths(today, 1); applyQuick(startOfMonth(prev), endOfMonth(prev)); } },
     { label: 'Este Ano', action: () => { applyQuick(new Date(today.getFullYear(), 0, 1), today); } },
