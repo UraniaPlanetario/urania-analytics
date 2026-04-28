@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   Cell, LabelList, CartesianGrid,
@@ -9,6 +9,7 @@ import {
   LeadClosedOrigem, CaminhoOrigem, CAMINHO_COLORS, CAMINHO_DESCRIPTIONS,
   ClosedFilters, normalizeCanal, formatDateBR,
 } from '../types';
+import { MultiSelect } from '@/components/MultiSelect';
 
 interface Props {
   filters: ClosedFilters;
@@ -42,9 +43,42 @@ const CAMINHOS_ORDER: CaminhoOrigem[] = ['Direto', 'Reativada', 'Resgate', 'Reco
 
 export function OrigemBlock({ filters }: Props) {
   const { data: leadsRaw = [], isLoading } = useLeadsOrigem();
+  // Filtros locais da aba (em adição aos filtros globais da ClosedFilterBar)
+  const [canaisFiltro, setCanaisFiltro] = useState<string[]>([]);
+  const [classFiltro, setClassFiltro] = useState<string[]>([]);
 
-  // Mesma lógica de filtro do useFilteredClosed, adaptada pro tipo enriquecido
+  // Aplica filtros globais (vendedor/astronomo/cancelado/período) primeiro,
+  // depois os locais (canal/classificação)
   const leads = useMemo(() => {
+    return leadsRaw.filter((l) => {
+      if (filters.vendedores.length > 0 && !filters.vendedores.includes(l.vendedor || '')) return false;
+      if (filters.astronomos.length > 0 && !filters.astronomos.includes(l.astronomo || '')) return false;
+      if (filters.cancelado === 'sim' && !l.cancelado) return false;
+      if (filters.cancelado === 'nao' && l.cancelado) return false;
+      const refDateStr = l.cancelado ? l.data_cancelamento_fmt : l.data_fechamento_fmt;
+      if (!refDateStr) return false;
+      const ref = refDateStr.slice(0, 10);
+      if (filters.dateRange.from) {
+        const y = filters.dateRange.from.getFullYear();
+        const m = String(filters.dateRange.from.getMonth() + 1).padStart(2, '0');
+        const d = String(filters.dateRange.from.getDate()).padStart(2, '0');
+        if (ref < `${y}-${m}-${d}`) return false;
+      }
+      if (filters.dateRange.to) {
+        const y = filters.dateRange.to.getFullYear();
+        const m = String(filters.dateRange.to.getMonth() + 1).padStart(2, '0');
+        const d = String(filters.dateRange.to.getDate()).padStart(2, '0');
+        if (ref > `${y}-${m}-${d}`) return false;
+      }
+      if (canaisFiltro.length > 0 && !canaisFiltro.includes(normalizeCanal(l.canal_entrada))) return false;
+      if (classFiltro.length > 0 && !classFiltro.includes(l.caminho_origem)) return false;
+      return true;
+    });
+  }, [leadsRaw, filters, canaisFiltro, classFiltro]);
+
+  // Opções dos selects: derivadas dos leads ANTES dos filtros locais
+  // (pra que limpar um filtro permita escolher de novo).
+  const leadsPreLocal = useMemo(() => {
     return leadsRaw.filter((l) => {
       if (filters.vendedores.length > 0 && !filters.vendedores.includes(l.vendedor || '')) return false;
       if (filters.astronomos.length > 0 && !filters.astronomos.includes(l.astronomo || '')) return false;
@@ -68,6 +102,12 @@ export function OrigemBlock({ filters }: Props) {
       return true;
     });
   }, [leadsRaw, filters]);
+
+  const canalOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of leadsPreLocal) set.add(normalizeCanal(l.canal_entrada));
+    return Array.from(set).sort().map((v) => ({ value: v, label: v }));
+  }, [leadsPreLocal]);
 
   const stats = useMemo(() => {
     const ativos = leads;
@@ -125,8 +165,32 @@ export function OrigemBlock({ filters }: Props) {
     );
   }
 
+  const classOptions = CAMINHOS_ORDER.map((c) => ({
+    value: c,
+    label: c,
+    swatch: CAMINHO_COLORS[c],
+  }));
+
   return (
     <div className="space-y-6">
+      {/* Filtros locais da aba */}
+      <div className="card-glass p-4 rounded-xl grid grid-cols-1 md:grid-cols-2 gap-4">
+        <MultiSelect
+          label="Canal de entrada"
+          options={canalOptions}
+          value={canaisFiltro}
+          onChange={setCanaisFiltro}
+          placeholder="Todos os canais"
+        />
+        <MultiSelect
+          label="Classificação CRM"
+          options={classOptions}
+          value={classFiltro}
+          onChange={setClassFiltro}
+          placeholder="Todas as classificações"
+        />
+      </div>
+
       {/* KPIs gerais */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="card-glass p-4 rounded-xl text-center">

@@ -1,7 +1,7 @@
 import { Search, X } from 'lucide-react';
 import type { Filtros, TipoTarefa, StatusTarefa } from '../types';
 import { TIPOS_TAREFA, colorForAstronomo, astronomoDisplay } from '../types';
-import { MultiSelect } from './MultiSelect';
+import { MultiSelect } from '@/components/MultiSelect';
 import { DateRangePicker } from '@/components/DateRangePicker';
 
 interface Props {
