@@ -30,6 +30,14 @@ function diariasOf(l: LeadClosedOrigem): number {
   return isNaN(n) ? 0 : n;
 }
 
+/** Extrai a UF de "Cidade - UF" (ex: "Maragogi - AL" → "AL"). */
+function extractUF(cidadeEstado: string | null): string {
+  if (!cidadeEstado) return '—';
+  const idx = cidadeEstado.lastIndexOf(' - ');
+  if (idx < 0) return cidadeEstado.trim();
+  return cidadeEstado.slice(idx + 3).trim();
+}
+
 const CAMINHOS_ORDER: CaminhoOrigem[] = ['Direto', 'Reativada', 'Resgate', 'Recorrente'];
 
 export function OrigemBlock({ filters }: Props) {
@@ -333,7 +341,7 @@ function LeadsTable({ leads }: { leads: LeadClosedOrigem[] }) {
             <tr>
               <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Fechamento</th>
               <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Lead</th>
-              <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Cidade</th>
+              <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">UF</th>
               <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Vendedor</th>
               <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Canal</th>
               <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Caminho</th>
@@ -350,12 +358,12 @@ function LeadsTable({ leads }: { leads: LeadClosedOrigem[] }) {
                 className={`border-b border-border/40 hover:bg-accent/40 ${l.cancelado ? 'opacity-50' : ''}`}
               >
                 <td className="py-1.5 px-3 tabular-nums">{formatDateBR(l.data_fechamento_fmt)}</td>
-                <td className="py-1.5 px-3 truncate max-w-[260px]" title={l.lead_name ?? ''}>
+                <td className="py-1.5 px-3 truncate max-w-[180px]" title={l.lead_name ?? ''}>
                   {l.lead_name ?? '—'}
                   {l.cancelado && <span className="ml-1 text-[10px] text-rose-500">(cancelado)</span>}
                 </td>
-                <td className="py-1.5 px-3 truncate max-w-[140px] text-muted-foreground">
-                  {l.cidade_estado ?? '—'}
+                <td className="py-1.5 px-3 text-muted-foreground">
+                  {extractUF(l.cidade_estado)}
                 </td>
                 <td className="py-1.5 px-3 truncate max-w-[140px] text-muted-foreground">
                   {l.vendedor ?? '—'}
