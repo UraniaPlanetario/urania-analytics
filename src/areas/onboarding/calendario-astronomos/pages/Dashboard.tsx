@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Loader2, Calendar, ListTodo, ShieldAlert } from 'lucide-react';
 import { useAgendamentos, useAstronomos, calcStats } from '../hooks/useAgendamentos';
-import { FILTROS_DEFAULT, nomesBatem, datasBatem, auditoriaTarefaSuspeita } from '../types';
+import { FILTROS_DEFAULT, computeAuditFlags } from '../types';
 import type { Filtros, Agendamento } from '../types';
 import { FilterBar } from '../components/FilterBar';
 import { KPIs } from '../components/KPIs';
@@ -23,6 +23,14 @@ export default function CalendarioAstronomosDashboard() {
 
   const [tab, setTab] = useState<TabId>('agenda');
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_DEFAULT);
+
+  // Mapa de flags de auditoria com contexto do lead — calculado sobre a lista
+  // bruta (sem filtros) pra que a regra "múltiplas diárias em série" enxergue
+  // todas as VISITAs do lead, mesmo que algum filtro escondesse uma delas.
+  const auditFlagsAll = useMemo(
+    () => computeAuditFlags(agendamentos ?? []),
+    [agendamentos],
+  );
 
   const filtrados = useMemo(() => {
     if (!agendamentos) return [];
@@ -48,12 +56,13 @@ export default function CalendarioAstronomosDashboard() {
         const haystack = norm(`${a.nome_escola ?? ''} ${a.cidade ?? ''} ${a.uf ?? ''} ${a.endereco ?? ''}`);
         if (!haystack.includes(buscaN)) return false;
       }
-      if (filtros.flagAuditoriaNome && nomesBatem(a.astronomo, a.astronomo_card)) return false;
-      if (filtros.flagAuditoriaData && datasBatem(a.data_conclusao, a.data_agendamento)) return false;
-      if (filtros.flagAuditoriaTarefa && !auditoriaTarefaSuspeita(a)) return false;
+      const f = auditFlagsAll.get(a.task_id);
+      if (filtros.flagAuditoriaNome && !f?.nome) return false;
+      if (filtros.flagAuditoriaData && !f?.data) return false;
+      if (filtros.flagAuditoriaTarefa && !f?.tarefa) return false;
       return true;
     });
-  }, [agendamentos, filtros]);
+  }, [agendamentos, filtros, auditFlagsAll]);
 
   const stats = useMemo(() => calcStats(filtrados), [filtrados]);
 

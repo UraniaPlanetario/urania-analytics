@@ -1,7 +1,7 @@
-import type { Agendamento } from '../types';
+import type { Agendamento, AuditFlags } from '../types';
 import {
   colorForAstronomo, astronomoDisplay, formatDateTime, statusLabel, statusColorClass,
-  nomesBatem, datasBatem, auditoriaTarefaSuspeita,
+  nomesBatem, datasBatem, auditoriaTarefaSuspeita, getFlags,
 } from '../types';
 import { AlertTriangle, MapPin } from 'lucide-react';
 
@@ -10,10 +10,14 @@ interface Props {
   onSelect: (a: Agendamento) => void;
   showAuditoriaFlags?: boolean;
   emptyLabel?: string;
+  /** Map de flags pré-computadas com contexto do lead. Quando passado, tem
+   *  prioridade sobre o cálculo individual (necessário pra regra de múltiplas
+   *  diárias da auditoria de data). */
+  auditFlags?: Map<number, AuditFlags>;
 }
 
 export function ListaAgendamentos({
-  agendamentos, onSelect, showAuditoriaFlags, emptyLabel,
+  agendamentos, onSelect, showAuditoriaFlags, emptyLabel, auditFlags,
 }: Props) {
   if (agendamentos.length === 0) {
     return (
@@ -26,9 +30,14 @@ export function ListaAgendamentos({
   return (
     <div className="bg-card border rounded-lg divide-y">
       {agendamentos.map((a) => {
-        const flagNome = !nomesBatem(a.astronomo, a.astronomo_card);
-        const flagData = !datasBatem(a.data_conclusao, a.data_agendamento);
-        const flagTarefa = auditoriaTarefaSuspeita(a);
+        const f = auditFlags
+          ? getFlags(auditFlags, a.task_id)
+          : {
+              nome: !nomesBatem(a.astronomo, a.astronomo_card),
+              data: !datasBatem(a.data_conclusao, a.data_agendamento),
+              tarefa: auditoriaTarefaSuspeita(a),
+            };
+        const flagNome = f.nome, flagData = f.data, flagTarefa = f.tarefa;
         const hasFlag = showAuditoriaFlags && (flagNome || flagData || flagTarefa);
         return (
           <button

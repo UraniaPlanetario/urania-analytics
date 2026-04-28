@@ -1,22 +1,28 @@
 import { X, MapPin, Calendar as CalIcon, GraduationCap, Tag, Phone, Users as UsersIcon, ExternalLink } from 'lucide-react';
 import {
-  Agendamento, formatDateTime, formatDate, formatCurrency, statusLabel, statusColorClass,
+  Agendamento, AuditFlags, formatDateTime, formatDate, formatCurrency, statusLabel, statusColorClass,
   colorForAstronomo, astronomoDisplay, nomesBatem, datasBatem, auditoriaTarefaSuspeita,
-  kommoLeadUrl,
+  kommoLeadUrl, getFlags,
 } from '../types';
 
 interface Props {
   open: boolean;
   agendamento: Agendamento | null;
   onClose: () => void;
+  auditFlags?: Map<number, AuditFlags>;
 }
 
-export function AgendamentoModal({ open, agendamento, onClose }: Props) {
+export function AgendamentoModal({ open, agendamento, onClose, auditFlags }: Props) {
   if (!open || !agendamento) return null;
   const a = agendamento;
-  const flagNome = !nomesBatem(a.astronomo, a.astronomo_card);
-  const flagData = !datasBatem(a.data_conclusao, a.data_agendamento);
-  const flagTarefa = auditoriaTarefaSuspeita(a);
+  const f = auditFlags
+    ? getFlags(auditFlags, a.task_id)
+    : {
+        nome: !nomesBatem(a.astronomo, a.astronomo_card),
+        data: !datasBatem(a.data_conclusao, a.data_agendamento),
+        tarefa: auditoriaTarefaSuspeita(a),
+      };
+  const flagNome = f.nome, flagData = f.data, flagTarefa = f.tarefa;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
@@ -71,6 +77,8 @@ export function AgendamentoModal({ open, agendamento, onClose }: Props) {
           <Field icon={Phone} label="Telefone" value={a.telefone_responsavel} />
           <Field icon={Tag} label="Brinde" value={a.brinde} />
           <Field icon={Tag} label="Valor da venda" value={formatCurrency(a.valor_venda)} />
+          <Field icon={Tag} label="Cliente desde" value={a.cliente_desde} />
+          <Field icon={Tag} label="Produtos já contratados" value={a.produtos_contratados} colSpan />
           {(a.nps || a.nota_nps) && (
             <Field icon={Tag} label="NPS" value={(a.nps ?? a.nota_nps) ?? '—'} />
           )}

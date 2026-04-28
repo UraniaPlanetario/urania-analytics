@@ -47,6 +47,8 @@ export interface Agendamento {
   avaliacao_geral: string | null;
   avaliacao_astronomo: string | null;
   brinde: string | null;
+  produtos_contratados: string | null;
+  cliente_desde: string | null;
 }
 
 /** Cor por astrônomo — paleta fixa pra distinguir no calendário/mapa.
@@ -162,6 +164,79 @@ export function auditoriaTarefaSuspeita(a: Agendamento): boolean {
   if (a.desc_tarefa === 'VISITA') return false;
   if (a.desc_tarefa === 'PRÉ') return false;
   return !!a.data_agendamento;
+}
+
+export interface AuditFlags {
+  nome: boolean;
+  data: boolean;
+  tarefa: boolean;
+}
+
+const FLAGS_VAZIO: AuditFlags = { nome: false, data: false, tarefa: false };
+
+/** Computa flags de auditoria considerando o contexto do lead.
+ *
+ *  Regra especial pra **auditoria de data com múltiplas diárias**:
+ *  no card do lead só cabe 1 data de agendamento, mas a operação cria N tarefas
+ *  VISITA (1 por dia da diária). Se o lead tem `numero_diarias = N` e o BI
+ *  encontra exatamente N tarefas VISITA, e a primeira (data mais antiga) bate
+ *  com `data_agendamento`, então as outras N-1 tarefas (em dias subsequentes)
+ *  são esperadas e NÃO devem acender flag de data.
+ *
+ *  Quando essa condição não bate (qtd de visitas ≠ diárias, ou primeira data
+ *  diverge), volta pra comparação individual tarefa-a-tarefa. */
+export function computeAuditFlags(items: Agendamento[]): Map<number, AuditFlags> {
+  const result = new Map<number, AuditFlags>();
+
+  // Agrupa por lead pra avaliar a regra de série de visitas
+  const byLead = new Map<number, Agendamento[]>();
+  for (const a of items) {
+    if (a.lead_id == null) continue;
+    const arr = byLead.get(a.lead_id) ?? [];
+    arr.push(a);
+    byLead.set(a.lead_id, arr);
+  }
+
+  // Conjunto de leads onde a série de visitas está em ordem (primeira bate
+  // com data_agendamento e qtd === numero_diarias) — todas as visitas OK.
+  const leadsComSerieOk = new Set<number>();
+  for (const [leadId, arr] of byLead) {
+    const ref = arr[0];
+    if (!ref?.data_agendamento) continue;
+    const numDias = Math.max(1, Number(ref.numero_diarias) || 1);
+    if (numDias < 2) continue; // 1 diária cai na regra individual
+    const visitas = arr
+      .filter((x) => x.desc_tarefa === 'VISITA' && x.data_conclusao)
+      .sort((x, y) =>
+        new Date(x.data_conclusao!).getTime() - new Date(y.data_conclusao!).getTime(),
+      );
+    if (visitas.length !== numDias) continue;
+    if (datasBatem(visitas[0].data_conclusao, ref.data_agendamento)) {
+      leadsComSerieOk.add(leadId);
+    }
+  }
+
+  for (const a of items) {
+    let flagData = !datasBatem(a.data_conclusao, a.data_agendamento);
+    if (
+      flagData &&
+      a.lead_id != null &&
+      a.desc_tarefa === 'VISITA' &&
+      leadsComSerieOk.has(a.lead_id)
+    ) {
+      flagData = false;
+    }
+    result.set(a.task_id, {
+      nome: !nomesBatem(a.astronomo, a.astronomo_card),
+      data: flagData,
+      tarefa: auditoriaTarefaSuspeita(a),
+    });
+  }
+  return result;
+}
+
+export function getFlags(map: Map<number, AuditFlags> | undefined, taskId: number): AuditFlags {
+  return map?.get(taskId) ?? FLAGS_VAZIO;
 }
 
 export interface Filtros {

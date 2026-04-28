@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import type { Agendamento } from '../types';
-import { nomesBatem, datasBatem, auditoriaTarefaSuspeita } from '../types';
+import { computeAuditFlags } from '../types';
 import { ListaAgendamentos } from './ListaAgendamentos';
 import { AgendamentoModal } from './AgendamentoModal';
 import { OnboardingSemVisitaSection } from './OnboardingSemVisitaSection';
@@ -22,6 +22,10 @@ export function AuditoriaTab({ agendamentos }: Props) {
     [agendamentos],
   );
 
+  // Calcula flags com contexto do lead — necessário pra regra de múltiplas
+  // diárias (N visitas em sequência batendo com data_agendamento ⇒ tudo OK).
+  const auditFlags = useMemo(() => computeAuditFlags(abertas), [abertas]);
+
   const grupos = useMemo(() => {
     const flagNome: Agendamento[] = [];
     const flagData: Agendamento[] = [];
@@ -29,14 +33,15 @@ export function AuditoriaTab({ agendamentos }: Props) {
     const semCoord: Agendamento[] = [];
     const semLead: Agendamento[] = [];
     for (const a of abertas) {
-      if (!nomesBatem(a.astronomo, a.astronomo_card)) flagNome.push(a);
-      if (!datasBatem(a.data_conclusao, a.data_agendamento)) flagData.push(a);
-      if (auditoriaTarefaSuspeita(a)) flagTarefa.push(a);
+      const f = auditFlags.get(a.task_id);
+      if (f?.nome) flagNome.push(a);
+      if (f?.data) flagData.push(a);
+      if (f?.tarefa) flagTarefa.push(a);
       if (a.latitude == null || a.longitude == null) semCoord.push(a);
       if (a.lead_id == null) semLead.push(a);
     }
     return { flagNome, flagData, flagTarefa, semCoord, semLead };
-  }, [abertas]);
+  }, [abertas, auditFlags]);
 
   const onbCriticos = useMemo(
     () => onboardingSemVisita.filter((l) => !l.lead_vazio && !l.ja_teve_visita_completa && l.tem_agendamento_futuro).length,
@@ -61,13 +66,15 @@ export function AuditoriaTab({ agendamentos }: Props) {
         description="O custom field 'Astrônomo' do lead não bate com o astrônomo derivado do task_type_id da tarefa. Indica troca de astrônomo sem refletir no card (ou vice-versa)."
         items={grupos.flagNome}
         onSelect={setSelected}
+        auditFlags={auditFlags}
       />
 
       <Section
         title="Auditoria Data — data da tarefa ≠ data agendada do lead"
-        description="A data programada da tarefa Kommo (complete_till) não coincide com a 'data de agendamento' do lead. Geralmente significa remarcação de um dos lados sem refletir no outro."
+        description="A data programada da tarefa Kommo (complete_till) não coincide com a 'data de agendamento' do lead. Para leads com múltiplas diárias, se a quantidade de tarefas VISITA bate com 'Nº de Diárias' e a primeira já casa com a data agendada, as visitas seguintes são consideradas esperadas e não acendem a flag."
         items={grupos.flagData}
         onSelect={setSelected}
+        auditFlags={auditFlags}
       />
 
       <Section
@@ -75,12 +82,14 @@ export function AuditoriaTab({ agendamentos }: Props) {
         description="Lead com data de agendamento preenchida, mas a tarefa atual no Kommo não é VISITA (nem PRÉ). Pode indicar tipo errado de tarefa após pré-visita."
         items={grupos.flagTarefa}
         onSelect={setSelected}
+        auditFlags={auditFlags}
       />
 
       <AgendamentoModal
         open={!!selected}
         agendamento={selected}
         onClose={() => setSelected(null)}
+        auditFlags={auditFlags}
       />
     </div>
   );
@@ -99,9 +108,13 @@ function SummaryCard({ label, count }: { label: string; count: number }) {
 }
 
 function Section({
-  title, description, items, onSelect,
+  title, description, items, onSelect, auditFlags,
 }: {
-  title: string; description: string; items: Agendamento[]; onSelect: (a: Agendamento) => void;
+  title: string;
+  description: string;
+  items: Agendamento[];
+  onSelect: (a: Agendamento) => void;
+  auditFlags: ReturnType<typeof computeAuditFlags>;
 }) {
   return (
     <div>
@@ -115,6 +128,7 @@ function Section({
         onSelect={onSelect}
         showAuditoriaFlags
         emptyLabel="Nada a auditar — tudo ok aqui."
+        auditFlags={auditFlags}
       />
     </div>
   );
