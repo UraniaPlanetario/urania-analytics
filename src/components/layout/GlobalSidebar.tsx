@@ -7,6 +7,7 @@ import {
 import logoUrania from '@/assets/logo-urania.png';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouteAccess } from '@/hooks/useRouteAccess';
+import { useDepartmentAccess } from '@/hooks/useDepartmentAccess';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 
 interface GlobalSidebarProps {
@@ -89,10 +90,22 @@ export function GlobalSidebar({ onLogout }: GlobalSidebarProps) {
   const location = useLocation();
   const { user, isGlobalAdmin } = useAuth();
   const { isFavorite, toggleFavorite } = useUserPreferences(user?.id);
+  const { canAccessRoute, isRestricted, isLoading: deptLoading } = useDepartmentAccess();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const toggleExpand = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   const isActive = (path: string) => location.pathname.startsWith(path);
+
+  // Container só aparece no sidebar se o usuário tem acesso a pelo menos UM
+  // dos seus filhos (recursivo). Sem isso, "Comercial" aparecia mesmo pra
+  // usuários restritos que não tinham acesso a nenhum dashboard comercial.
+  // Enquanto a info de dept tá carregando, mostra tudo (UX > sigilo aqui).
+  function hasAnyAccessibleLeaf(item: { path: string; children?: { path: string; children?: any }[] }): boolean {
+    if (!isRestricted) return true;
+    if (deptLoading) return true;
+    if (!item.children?.length) return canAccessRoute(item.path);
+    return item.children.some((child) => hasAnyAccessibleLeaf(child as any));
+  }
 
   function renderNavItem(item: NavItem): JSX.Element {
     const hasChildren = !!item.children?.length;
@@ -138,7 +151,10 @@ export function GlobalSidebar({ onLogout }: GlobalSidebarProps) {
       </div>
     );
 
-    if (hasChildren) return inner;
+    if (hasChildren) {
+      if (!hasAnyAccessibleLeaf(item)) return <></>;
+      return inner;
+    }
 
     return (
       <RouteLink path={item.path}>
@@ -207,7 +223,10 @@ export function GlobalSidebar({ onLogout }: GlobalSidebarProps) {
             </div>
           );
 
-          if (hasChildren) return inner;
+          if (hasChildren) {
+            if (!hasAnyAccessibleLeaf(area)) return null;
+            return inner;
+          }
 
           return (
             <RouteLink key={area.id} path={area.path}>
