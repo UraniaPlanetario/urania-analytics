@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Check, X } from 'lucide-react';
 
 export interface MultiSelectOption {
@@ -18,12 +19,35 @@ interface Props {
 
 export function MultiSelect({ label, options, value, onChange, placeholder, className }: Props) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
 
+  // Reposiciona o popover sempre que abrir/redimensionar
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = triggerRef.current?.getBoundingClientRect();
+      if (!r) return;
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
+
+  // Click-outside fecha o popover
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
@@ -45,7 +69,7 @@ export function MultiSelect({ label, options, value, onChange, placeholder, clas
       : `${value.length} selecionados`;
 
   return (
-    <div ref={ref} className={`relative ${className ?? ''}`}>
+    <div ref={triggerRef} className={`relative ${className ?? ''}`}>
       <label className="text-xs text-muted-foreground block mb-1">{label}</label>
       <button
         type="button"
@@ -69,8 +93,17 @@ export function MultiSelect({ label, options, value, onChange, placeholder, clas
         <ChevronDown size={14} className={`text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
-        <div className="absolute z-30 mt-1 left-0 right-0 max-h-72 overflow-y-auto border rounded-md bg-popover shadow-lg">
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed max-h-72 overflow-y-auto border rounded-md bg-popover shadow-lg"
+          style={{
+            top: pos.top,
+            left: pos.left,
+            width: pos.width,
+            zIndex: 9999,
+          }}
+        >
           {options.length === 0 && (
             <div className="px-3 py-2 text-xs text-muted-foreground">Nenhuma opção</div>
           )}
@@ -102,7 +135,8 @@ export function MultiSelect({ label, options, value, onChange, placeholder, clas
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
