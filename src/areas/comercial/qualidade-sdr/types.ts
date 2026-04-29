@@ -18,7 +18,14 @@ export type ValorCriterio = 'Bom' | 'Parcial' | 'Não' | 'Não se aplica' | null
 export interface QualidadeSDRRow {
   lead_id: number;
   lead_name: string | null;
+  pipeline_name: string | null;
+  status_name: string | null;
+  lead_created_at: string | null;
+  lead_updated_at: string | null;
   data_fechamento_fmt: string | null;
+  /** Data usada pelo filtro de período: data_fechamento_fmt se fechado, senão
+   *  updated_at do lead (preenchimento do C1-C5 atualiza updated_at). */
+  data_referencia: string | null;
   canal_entrada: string | null;
   vendedor: string | null;
   sdr: string | null;

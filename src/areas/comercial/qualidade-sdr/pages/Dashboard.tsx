@@ -29,8 +29,9 @@ export default function QualidadeSDRDashboard() {
   const filtrados = useMemo(() => {
     return rows.filter((r) => {
       if (filtros.sdrs.length > 0 && !filtros.sdrs.includes(r.sdr || '')) return false;
-      const ref = r.data_fechamento_fmt?.slice(0, 10);
-      if (!ref) return false;
+      // data_referencia = fechamento se fechado, senão updated_at do lead
+      const ref = r.data_referencia?.slice(0, 10);
+      if (!ref) return true; // sem data → não filtra (tolerante)
       if (filtros.dateRange.from) {
         const f = ymd(filtros.dateRange.from);
         if (ref < f) return false;
@@ -132,15 +133,15 @@ export default function QualidadeSDRDashboard() {
         <h1 className="text-2xl font-bold">Qualidade SDR</h1>
         <p className="text-sm text-muted-foreground">
           Avaliação qualitativa da atuação dos SDRs em cada etapa de cadência (C1–C5),
-          baseada em 25 critérios preenchidos no Kommo. Nota geral pondera C1·20% +
-          C2·20% + C3·15% + C4·20% + C5·25%.
+          baseada em 25 critérios preenchidos no Kommo (independente do desfecho do lead).
+          Nota geral pondera C1·20% + C2·20% + C3·15% + C4·20% + C5·25%.
         </p>
       </div>
 
       {/* Filtros */}
       <div className="card-glass p-4 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
         <div className="md:col-span-1">
-          <label className="text-xs text-muted-foreground block mb-1">Período (data de fechamento)</label>
+          <label className="text-xs text-muted-foreground block mb-1">Período</label>
           <DateRangePicker
             from={filtros.dateRange.from}
             to={filtros.dateRange.to}
