@@ -63,7 +63,7 @@ export default function AppShell({ onLogout }: AppShellProps) {
   return (
     <div className="min-h-screen bg-background">
       <GlobalSidebar onLogout={onLogout} />
-      <main className="ml-56 p-6">
+      <main className="md:ml-56 p-4 pt-16 md:p-6 md:pt-6">
         <RouteTracker />
         <Routes>
           {protectedRoutes.map(({ path, element }) => (

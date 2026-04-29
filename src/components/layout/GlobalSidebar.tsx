@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   TrendingUp, Megaphone, DollarSign, GraduationCap, Cpu,
-  ChevronDown, ChevronRight, LogOut, ShieldCheck, Star,
+  ChevronDown, ChevronRight, LogOut, ShieldCheck, Star, Menu, X,
 } from 'lucide-react';
 import logoUrania from '@/assets/logo-urania.png';
 import { useAuth } from '@/hooks/useAuth';
@@ -143,9 +143,25 @@ export function GlobalSidebar({ onLogout }: GlobalSidebarProps) {
   const { isFavorite, toggleFavorite } = useUserPreferences(user?.id);
   const { canAccessRoute, isRestricted, isLoading: deptLoading } = useDepartmentAccess();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Sidebar mobile: fechado por padrão (astrônomos abrem o app no celular e
+  // queremos que vejam o conteúdo cheio sem o menu cobrindo). No desktop o
+  // CSS `md:translate-x-0` ignora esse estado.
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const toggleExpand = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   const isActive = (path: string) => location.pathname.startsWith(path);
+
+  // Fecha sidebar mobile ao navegar pra outra rota.
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+
+  // Trava scroll do body enquanto o sidebar mobile está aberto (evita scroll
+  // duplicado por trás do overlay).
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [mobileOpen]);
 
   // Container só aparece no sidebar se o usuário tem acesso a pelo menos UM
   // dos seus filhos (recursivo). Sem isso, "Comercial" aparecia mesmo pra
@@ -217,15 +233,48 @@ export function GlobalSidebar({ onLogout }: GlobalSidebarProps) {
   const displayName = user?.full_name || user?.email?.split('@')[0] || '';
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-56 bg-sidebar border-r border-sidebar-border flex flex-col z-50">
+    <>
+      {/* Hamburger flutuante — só mobile. Posicionado em cima do conteúdo. */}
       <button
-        onClick={() => navigate('/')}
-        className="p-5 border-b border-sidebar-border hover:bg-sidebar-accent/40 transition-colors flex items-center justify-center"
-        aria-label="Ir para a tela inicial"
-        title="Tela inicial"
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden fixed top-3 left-3 z-40 p-2 rounded-lg bg-sidebar/90 backdrop-blur border border-sidebar-border text-sidebar-foreground/80 hover:text-sidebar-foreground shadow-lg"
+        aria-label="Abrir menu"
+        aria-expanded={mobileOpen}
       >
-        <img src={logoUrania} alt="Urânia" className="h-20" />
+        <Menu size={20} />
       </button>
+
+      {/* Backdrop mobile */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          className="md:hidden fixed inset-0 bg-black/60 z-40"
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`fixed left-0 top-0 h-screen w-56 bg-sidebar border-r border-sidebar-border flex flex-col z-50 transition-transform duration-200 ease-out ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0`}
+      >
+        {/* Botão fechar — só mobile */}
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="md:hidden absolute top-2 right-2 z-10 p-1.5 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+          aria-label="Fechar menu"
+        >
+          <X size={18} />
+        </button>
+
+        <button
+          onClick={() => navigate('/')}
+          className="p-5 border-b border-sidebar-border hover:bg-sidebar-accent/40 transition-colors flex items-center justify-center"
+          aria-label="Ir para a tela inicial"
+          title="Tela inicial"
+        >
+          <img src={logoUrania} alt="Urânia" className="h-20" />
+        </button>
 
       <nav className="flex-1 p-3 overflow-y-auto scrollbar-thin">
         {SECTIONS.map((section, sIdx) => {
@@ -331,6 +380,7 @@ export function GlobalSidebar({ onLogout }: GlobalSidebarProps) {
           Sair
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
