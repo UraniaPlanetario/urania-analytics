@@ -5,6 +5,7 @@ import {
   colorForAstronomo, astronomoDisplay, nomesBatem, datasBatem, auditoriaTarefaSuspeita,
   kommoLeadUrl, getFlags, formatPhone, googleMapsUrl,
 } from '../types';
+import { CopyButton } from '@/components/CopyButton';
 
 interface Props {
   open: boolean;
@@ -84,7 +85,12 @@ export function AgendamentoModal({ open, agendamento, onClose, auditFlags, compa
             <Field icon={GraduationCap} label="Astrônomo (no card do lead)" value={a.astronomo_card} />
           )}
           <Field icon={GraduationCap} label="Responsável da escola" value={a.responsavel_evento} />
-          <Field icon={Phone} label="Telefone" value={formatPhone(a.telefone_responsavel)} />
+          <Field
+            icon={Phone}
+            label="Telefone"
+            value={formatPhone(a.telefone_responsavel)}
+            action={a.telefone_responsavel ? <CopyButton value={formatPhone(a.telefone_responsavel)} /> : null}
+          />
           <Field icon={Tag} label="Brinde" value={a.brinde} />
           <Field icon={Tag} label="Valor da venda" value={formatCurrency(a.valor_venda)} />
           <Field icon={Tag} label="Cliente desde" value={a.cliente_desde} />
@@ -129,9 +135,13 @@ export function AgendamentoModal({ open, agendamento, onClose, auditFlags, compa
 }
 
 function Field({
-  icon: Icon, label, value, colSpan,
+  icon: Icon, label, value, colSpan, action,
 }: {
-  icon: any; label: string; value: string | number | null | undefined; colSpan?: boolean;
+  icon: any;
+  label: string;
+  value: string | number | null | undefined;
+  colSpan?: boolean;
+  action?: React.ReactNode;
 }) {
   if (value == null || value === '' || value === '—') {
     return (
@@ -144,7 +154,10 @@ function Field({
   return (
     <div className={colSpan ? 'col-span-2' : ''}>
       <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Icon size={11} /> {label}</p>
-      <p className="text-sm">{value}</p>
+      <p className="text-sm flex items-center gap-1.5">
+        <span>{value}</span>
+        {action}
+      </p>
     </div>
   );
 }

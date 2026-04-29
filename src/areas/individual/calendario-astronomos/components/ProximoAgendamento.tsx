@@ -5,6 +5,7 @@ import {
   formatDataVisita, formatCurrency, statusLabel, statusColorClass,
   colorForAstronomo, kommoLeadUrl, formatPhone, googleMapsUrl,
 } from '@/areas/onboarding/calendario-astronomos/types';
+import { CopyButton } from '@/components/CopyButton';
 
 interface Props {
   agendamentos: Agendamento[];
@@ -81,7 +82,12 @@ export function ProximoAgendamento({ agendamentos }: Props) {
             <Field icon={Tag} label="Conteúdo da apresentação" value={a.conteudo_apresentacao} colSpan />
             <Field icon={MapPin} label="Endereço / local" value={a.local_instalacao ?? a.endereco} colSpan />
             <Field icon={GraduationCap} label="Responsável da escola" value={a.responsavel_evento} />
-            <Field icon={Phone} label="Telefone" value={formatPhone(a.telefone_responsavel)} />
+            <Field
+              icon={Phone}
+              label="Telefone"
+              value={formatPhone(a.telefone_responsavel)}
+              action={a.telefone_responsavel ? <CopyButton value={formatPhone(a.telefone_responsavel)} /> : null}
+            />
             <Field icon={Tag} label="Cliente desde" value={a.cliente_desde} />
             <Field icon={Tag} label="Produtos já contratados" value={a.produtos_contratados} colSpan />
             <Field icon={Tag} label="Brinde" value={a.brinde} />
@@ -117,9 +123,13 @@ export function ProximoAgendamento({ agendamentos }: Props) {
 }
 
 function Field({
-  icon: Icon, label, value, colSpan,
+  icon: Icon, label, value, colSpan, action,
 }: {
-  icon: any; label: string; value: string | number | null | undefined; colSpan?: boolean;
+  icon: any;
+  label: string;
+  value: string | number | null | undefined;
+  colSpan?: boolean;
+  action?: React.ReactNode;
 }) {
   if (value == null || value === '' || value === '—') {
     return (
@@ -132,7 +142,10 @@ function Field({
   return (
     <div className={colSpan ? 'col-span-2' : ''}>
       <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Icon size={11} /> {label}</p>
-      <p className="text-sm">{value}</p>
+      <p className="text-sm flex items-center gap-1.5">
+        <span>{value}</span>
+        {action}
+      </p>
     </div>
   );
 }

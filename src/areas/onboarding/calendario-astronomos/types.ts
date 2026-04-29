@@ -120,22 +120,23 @@ export function kommoLeadUrl(leadId: number | null | undefined): string | null {
   return `https://uraniaplanetario.kommo.com/leads/detail/${leadId}`;
 }
 
-/** Formata telefone BR pra "+55 (DD) NNNNN-NNNN". Aceita variações (com/sem DDI,
- *  fixo/celular). Retorna o valor original se não casar com nenhum padrão. */
+/** Formata telefone BR pra "(DD) NNNNN-NNNN". DDI é descartado (sempre Brasil
+ *  na operação). Aceita variações com/sem 55 prefixado, fixo/celular.
+ *  Retorna o valor original se não casar com nenhum padrão. */
 export function formatPhone(raw: string | null | undefined): string {
   if (!raw) return '—';
   const digits = raw.replace(/\D/g, '');
-  if (digits.length === 13 && digits.startsWith('55')) {
-    return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  // Remove DDI 55 se presente
+  const local = digits.length === 13 && digits.startsWith('55')
+    ? digits.slice(2)
+    : digits.length === 12 && digits.startsWith('55')
+    ? digits.slice(2)
+    : digits;
+  if (local.length === 11) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
   }
-  if (digits.length === 12 && digits.startsWith('55')) {
-    return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
-  }
-  if (digits.length === 11) {
-    return `+55 (${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  }
-  if (digits.length === 10) {
-    return `+55 (${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  if (local.length === 10) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
   }
   return raw;
 }
