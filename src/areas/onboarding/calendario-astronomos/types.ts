@@ -49,6 +49,40 @@ export interface Agendamento {
   brinde: string | null;
   produtos_contratados: string | null;
   cliente_desde: string | null;
+
+  // Campos vindos da entidade Empresa (Kommo) via lead.company_id.
+  // O endereço e cidade/estado da empresa são mais confiáveis que os do lead
+  // — o lead tem só "Cidade - Estado" texto livre e o "endereço" raramente
+  // é preenchido. A empresa tem CEP, rua, número e UF separados.
+  endereco_empresa: string | null;
+  cidade_empresa: string | null;
+  estado_empresa: string | null;
+  /** Onde a cúpula vai ser fisicamente instalada (quadra, pátio, ginásio…). */
+  local_instalacao_empresa: string | null;
+  /** Turno do dia da visita ("manhã", "tarde", "manhã e tarde") — diferente
+   *  do `turno` do lead que é a quantidade de turnos do evento. */
+  turno_dia: string | null;
+}
+
+/** Cidade/estado preferindo os da empresa (separados, mais confiáveis), com
+ *  fallback pro `cidade_estado` do lead (texto livre). */
+export function cidadeEstadoDisplay(
+  a: Pick<Agendamento, 'cidade_empresa' | 'estado_empresa' | 'cidade_estado'>,
+): string | null {
+  const cid = a.cidade_empresa?.trim();
+  const uf = a.estado_empresa?.trim();
+  if (cid && uf) return `${cid} - ${uf}`;
+  if (cid) return cid;
+  return a.cidade_estado;
+}
+
+/** Endereço completo da empresa (CEP, rua, número), com fallback pro lead.
+ *  Não usa `local_instalacao` do lead — esse campo é "Local coberto?" (Sim/Não),
+ *  não um endereço. */
+export function enderecoDisplay(
+  a: Pick<Agendamento, 'endereco_empresa' | 'endereco'>,
+): string | null {
+  return a.endereco_empresa ?? a.endereco;
 }
 
 /** Cor por astrônomo — paleta fixa pra distinguir no calendário/mapa.
@@ -162,12 +196,16 @@ export function formatDataVisita(
 }
 
 /** Gera URL do Google Maps pro agendamento. Prioriza coordenadas precisas;
- *  cai pra busca por endereço/cidade quando não há lat/long. */
-export function googleMapsUrl(a: Pick<Agendamento, 'latitude' | 'longitude' | 'endereco' | 'cidade_estado' | 'nome_escola'>): string | null {
+ *  cai pra busca por endereço da empresa, depois lead, depois nome da escola. */
+export function googleMapsUrl(
+  a: Pick<Agendamento, 'latitude' | 'longitude' | 'endereco_empresa' | 'cidade_empresa' | 'estado_empresa' | 'endereco' | 'cidade_estado' | 'nome_escola'>,
+): string | null {
   if (a.latitude != null && a.longitude != null) {
     return `https://www.google.com/maps/search/?api=1&query=${a.latitude},${a.longitude}`;
   }
-  const parts = [a.endereco, a.cidade_estado].filter(Boolean).join(', ');
+  const cidEst = cidadeEstadoDisplay(a);
+  const end = enderecoDisplay(a);
+  const parts = [end, cidEst].filter(Boolean).join(', ');
   if (parts) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(parts)}`;
   if (a.nome_escola) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.nome_escola)}`;
   return null;

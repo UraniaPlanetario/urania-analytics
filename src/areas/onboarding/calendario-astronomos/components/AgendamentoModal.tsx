@@ -1,9 +1,10 @@
 import { createPortal } from 'react-dom';
-import { X, MapPin, Calendar as CalIcon, GraduationCap, Tag, Phone, Users as UsersIcon, ExternalLink } from 'lucide-react';
+import { X, MapPin, Calendar as CalIcon, GraduationCap, Tag, Phone, Users as UsersIcon, ExternalLink, Sun } from 'lucide-react';
 import {
   Agendamento, AuditFlags, formatDateTime, formatDate, formatDataVisita, formatCurrency, statusLabel, statusColorClass,
   colorForAstronomo, astronomoDisplay, nomesBatem, datasBatem, auditoriaTarefaSuspeita,
   kommoLeadUrl, getFlags, formatPhone, googleMapsUrl,
+  cidadeEstadoDisplay, enderecoDisplay,
 } from '../types';
 import { CopyButton } from '@/components/CopyButton';
 
@@ -52,7 +53,7 @@ export function AgendamentoModal({ open, agendamento, onClose, auditFlags, compa
               </span>
             </div>
             <h2 className="text-lg font-semibold leading-tight">{a.nome_escola ?? '(escola não vinculada)'}</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{a.cidade_estado ?? '—'}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{cidadeEstadoDisplay(a) ?? '—'}</p>
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-accent text-muted-foreground">
             <X size={18} />
@@ -73,14 +74,15 @@ export function AgendamentoModal({ open, agendamento, onClose, auditFlags, compa
             <Field icon={CalIcon} label="Data agendada (lead)" value={formatDateTime(a.data_agendamento)} />
           )}
           <Field icon={Tag} label="Turno" value={a.turno} />
+          <Field icon={Sun} label="Turno no Dia" value={a.turno_dia} />
           <Field icon={Tag} label="Nº de diárias" value={a.numero_diarias} />
           <Field icon={UsersIcon} label="Nº de alunos" value={a.numero_alunos} />
           <Field icon={Tag} label="Cúpula" value={a.cupula} />
+          <Field icon={MapPin} label="Local de instalação da cúpula" value={a.local_instalacao_empresa} />
           {!compact && <Field icon={Tag} label="Segmento" value={a.segmento} />}
           <Field icon={Tag} label="Produtos" value={a.produtos} />
           <Field icon={Tag} label="Conteúdo da apresentação" value={a.conteudo_apresentacao} colSpan />
-          <Field icon={MapPin} label="Endereço" value={a.endereco} colSpan />
-          <Field icon={MapPin} label="Local de instalação" value={a.local_instalacao} colSpan />
+          <Field icon={MapPin} label="Endereço" value={enderecoDisplay(a)} colSpan />
           {!compact && (
             <Field icon={GraduationCap} label="Astrônomo (no card do lead)" value={a.astronomo_card} />
           )}

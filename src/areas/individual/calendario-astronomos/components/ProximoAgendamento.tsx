@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
-import { MapPin, Phone, Users as UsersIcon, Tag, GraduationCap, ExternalLink } from 'lucide-react';
+import { MapPin, Phone, Users as UsersIcon, Tag, GraduationCap, ExternalLink, Sun } from 'lucide-react';
 import type { Agendamento } from '@/areas/onboarding/calendario-astronomos/types';
 import {
   formatDataVisita, formatCurrency,
   colorForAstronomo, kommoLeadUrl, formatPhone, googleMapsUrl,
+  cidadeEstadoDisplay, enderecoDisplay,
 } from '@/areas/onboarding/calendario-astronomos/types';
 import { CopyButton } from '@/components/CopyButton';
 
@@ -66,18 +67,20 @@ export function ProximoAgendamento({ agendamentos }: Props) {
           <div>
             <h2 className="text-xl font-bold leading-tight">{a.nome_escola ?? '(escola não vinculada)'}</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {a.cidade_estado ?? '—'}
+              {cidadeEstadoDisplay(a) ?? '—'}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <Field icon={Tag} label="Turno" value={a.turno} />
+            <Field icon={Sun} label="Turno no Dia" value={a.turno_dia} />
             <Field icon={Tag} label="Nº de diárias" value={a.numero_diarias} />
             <Field icon={UsersIcon} label="Nº de alunos" value={a.numero_alunos} />
             <Field icon={Tag} label="Cúpula" value={a.cupula} />
+            <Field icon={MapPin} label="Local de instalação da cúpula" value={a.local_instalacao_empresa} />
             <Field icon={Tag} label="Produtos" value={a.produtos} colSpan />
             <Field icon={Tag} label="Conteúdo da apresentação" value={a.conteudo_apresentacao} colSpan />
-            <Field icon={MapPin} label="Endereço / local" value={a.local_instalacao ?? a.endereco} colSpan />
+            <Field icon={MapPin} label="Endereço" value={enderecoDisplay(a)} colSpan />
             <Field icon={GraduationCap} label="Responsável da escola" value={a.responsavel_evento} />
             <Field
               icon={Phone}

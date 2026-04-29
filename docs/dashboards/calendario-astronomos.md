@@ -94,7 +94,23 @@ Cada lista mostra chip âmbar nas próprias linhas indicando quais flags acendem
 - `nomesBatem(esperado, observado)` — normaliza e checa contém (`includes` em ambos os sentidos)
 - `datasBatem(taskComplete, leadAgendamento)` — compara YYYY-MM-DD em America/Sao_Paulo
 - `auditoriaTarefaSuspeita(a)` — true se tipo ≠ VISITA/PRÉ e `data_agendamento` preenchida
-- `formatCurrency`, `formatDate`, `formatDateTime`, `statusLabel`, `statusColorClass`
+- `cidadeEstadoDisplay(a)` — prefere `cidade_empresa` + `estado_empresa` (separados, mais confiáveis), fallback pro `cidade_estado` do lead (texto livre)
+- `enderecoDisplay(a)` — prefere `endereco_empresa` (CEP, rua, número da empresa), fallback pro `endereco` do lead. Não usa `local_instalacao` (esse é "Local coberto?" Sim/Não, não é endereço)
+- `formatCurrency`, `formatDate`, `formatDateTime`, `formatDataVisita`, `formatPhone`, `statusLabel`, `statusColorClass`, `googleMapsUrl`
+
+## Campos vindos da entidade Empresa (Kommo)
+
+A partir de [migration 050](../../supabase/migrations/050_agendamentos_astronomos_company_fields.sql), a view também traz 5 campos do custom field da **empresa** vinculada ao lead (via `bronze.kommo_leads_raw.company_id` → `bronze.kommo_companies_raw`):
+
+| Coluna | Origem | Uso no card |
+|---|---|---|
+| `endereco_empresa` | `c.custom_fields_by_id->>'586024'` (campo "Endereço" `code=ADDRESS`) | "Endereço" — endereço físico completo (CEP, rua, nº) |
+| `cidade_empresa` | `c.custom_fields->>'Cidade'` | Subtítulo da escola (junto com estado) |
+| `estado_empresa` | `c.custom_fields->>'Estado'` | Subtítulo da escola |
+| `local_instalacao_empresa` | `c.custom_fields->>'Local onde será instalada a cúpula'` | "Local de instalação da cúpula" (quadra, pátio…) |
+| `turno_dia` | `c.custom_fields->>'Turno'` | "Turno no Dia" — diferente do `turno` do lead que é a **quantidade** de turnos do evento |
+
+Importante: existem **2 custom fields chamados "Endereço"** no Kommo (`id=586024` ADDRESS e `id=852349`). A view extrai pelo `field_id` (não pelo nome) pra garantir que pega o correto. A sync `sync-kommo-companies` armazena dois jsonb (`custom_fields` por nome e `custom_fields_by_id`) justamente pra desambiguar.
 
 ## Pontos de atenção
 
