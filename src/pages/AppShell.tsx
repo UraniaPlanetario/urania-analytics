@@ -11,6 +11,7 @@ import DesempenhoSDR from '@/areas/comercial/desempenho-sdr/index';
 import QualidadeSDR from '@/areas/comercial/qualidade-sdr/index';
 import Faturamento from '@/areas/financeiro/index';
 import CalendarioAstronomos from '@/areas/onboarding/calendario-astronomos/index';
+import MeuCalendarioAstronomo from '@/areas/individual/calendario-astronomos/index';
 import AreaPlaceholder from '@/areas/placeholder';
 import Home from '@/pages/Home';
 import AdminUsers from '@/pages/admin/Users';
@@ -38,6 +39,7 @@ const protectedRoutes = [
   { path: '/financeiro', element: <Faturamento /> },
   { path: '/onboarding', element: <AreaPlaceholder title="Onboarding" /> },
   { path: '/onboarding/calendario-astronomos', element: <CalendarioAstronomos /> },
+  { path: '/individual/calendario-astronomos', element: <MeuCalendarioAstronomo /> },
   { path: '/tecnologia', element: <AreaPlaceholder title="Tecnologia" /> },
   { path: '/admin/usuarios', element: <AdminUsers /> },
   { path: '/admin/departamentos', element: <AdminDepartments /> },

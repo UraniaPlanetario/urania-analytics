@@ -14,9 +14,16 @@ interface AdminUser {
   auth_user_id: string | null;
   synced_from_hub_at: string | null;
   kommo_user_id: number | null;
+  astronomo: string | null;
   departments: { id: number; name: string; color: string; role: string }[];
   bi_role: BIRole | null;
 }
+
+const ASTRONOMOS_OPCOES = [
+  'Aline', 'Bruno', 'Cristian', 'Emerson', 'Marlon', 'Matheus Magalhães',
+  'Matheus Nascimento', 'Milenko', 'Nathalia', 'Olivia', 'Paulo', 'Priscilla',
+  'Procópio', 'Roberto', 'Rogério', 'Samantha', 'Sione', 'Thales', 'Thiago',
+];
 
 interface KommoSyncResult {
   success: boolean;
@@ -58,7 +65,7 @@ export default function AdminUsers() {
       const [usersRes, deptsRes, accessRes] = await Promise.all([
         supabase
           .from('users')
-          .select('id, email, full_name, is_active, is_global_admin, auth_user_id, synced_from_hub_at, kommo_user_id')
+          .select('id, email, full_name, is_active, is_global_admin, auth_user_id, synced_from_hub_at, kommo_user_id, astronomo')
           .order('email'),
         supabase
           .from('user_departments')
@@ -102,12 +109,14 @@ export default function AdminUsers() {
       is_active: boolean;
       is_global_admin: boolean;
       bi_role: BIRole | null;
+      astronomo: string | null;
     }) => {
       const { error: updErr } = await supabase
         .from('users')
         .update({
           is_active: input.is_active,
           is_global_admin: input.is_global_admin,
+          astronomo: input.astronomo,
           updated_at: new Date().toISOString(),
         })
         .eq('id', input.id);
@@ -237,6 +246,7 @@ export default function AdminUsers() {
       is_active: u.is_active,
       is_global_admin: u.is_global_admin,
       bi_role: u.bi_role,
+      astronomo: u.astronomo,
     });
   };
 
@@ -251,6 +261,7 @@ export default function AdminUsers() {
       is_active: draft.is_active ?? u.is_active,
       is_global_admin: draft.is_global_admin ?? u.is_global_admin,
       bi_role: draft.bi_role ?? u.bi_role,
+      astronomo: draft.astronomo !== undefined ? (draft.astronomo as string | null) : u.astronomo,
     });
   };
 
@@ -398,6 +409,7 @@ export default function AdminUsers() {
               <th className="text-left py-3 px-3 font-medium">Ativo</th>
               <th className="text-left py-3 px-3 font-medium">Global Admin</th>
               <th className="text-left py-3 px-3 font-medium">Role BI</th>
+              <th className="text-left py-3 px-3 font-medium" title="Vincula o usuário a um astrônomo (formato: 'Aline', 'Procópio', 'Matheus Magalhães'). Habilita o calendário individual.">Astrônomo</th>
               <th className="text-right py-3 px-3 font-medium">Ações</th>
             </tr>
           </thead>
@@ -514,6 +526,28 @@ export default function AdminUsers() {
                       </span>
                     ) : (
                       <span className="text-xs text-muted-foreground italic">sem acesso</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-3">
+                    {isEditing ? (
+                      <select
+                        value={(draft.astronomo !== undefined ? draft.astronomo : u.astronomo) ?? ''}
+                        onChange={(e) =>
+                          setDraft({ ...draft, astronomo: e.target.value === '' ? null : e.target.value })
+                        }
+                        className="text-xs px-2 py-1 rounded bg-secondary border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="">— nenhum</option>
+                        {ASTRONOMOS_OPCOES.map((nome) => (
+                          <option key={nome} value={nome}>{nome}</option>
+                        ))}
+                      </select>
+                    ) : u.astronomo ? (
+                      <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
+                        {u.astronomo}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">—</span>
                     )}
                   </td>
                   <td className="py-3 px-3 text-right">
