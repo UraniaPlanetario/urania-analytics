@@ -108,6 +108,7 @@ export default function MeuCalendarioDashboard() {
                 agendamentos={abertos}
                 onSelect={setSelected}
                 height={620}
+                compact
               />
               <MapaAgendamentos
                 agendamentos={abertos}

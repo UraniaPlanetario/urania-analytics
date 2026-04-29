@@ -28,9 +28,12 @@ interface Props {
   agendamentos: Agendamento[];
   onSelect: (a: Agendamento) => void;
   height?: number;
+  /** Esconde o nome do astrônomo do título e do tooltip. Usado no calendário
+   *  individual (já é todo do mesmo astrônomo, então o nome é redundante). */
+  compact?: boolean;
 }
 
-export function CalendarioAgendamentos({ agendamentos, onSelect, height = 600 }: Props) {
+export function CalendarioAgendamentos({ agendamentos, onSelect, height = 600, compact = false }: Props) {
   const events = useMemo<CalEvent[]>(() => {
     return agendamentos
       .filter((a) => !!a.data_conclusao)
@@ -48,15 +51,16 @@ export function CalendarioAgendamentos({ agendamentos, onSelect, height = 600 }:
         const main = isNaoMarcar
           ? 'Não Marcar'
           : `${a.nome_escola ?? '(sem escola)'}${a.cidade ? ' · ' + a.cidade : ''}`;
+        const prefix = compact ? '' : `${astronomoDisplay(a.astronomo)} · `;
         return {
-          title: `${astronomoDisplay(a.astronomo)} · ${main}${numDias > 1 ? ' (' + numDias + ' diárias)' : ''}`,
+          title: `${prefix}${main}${numDias > 1 ? ' (' + numDias + ' diárias)' : ''}`,
           start,
           end,
           allDay: true,
           agendamento: a,
         } as CalEvent;
       });
-  }, [agendamentos]);
+  }, [agendamentos, compact]);
 
   const messages = {
     today: 'Hoje',
@@ -115,7 +119,7 @@ export function CalendarioAgendamentos({ agendamentos, onSelect, height = 600 }:
               borderRadius: '4px',
               opacity: a.status_tarefa === 'atrasada' ? 0.75 : 1,
             },
-            title: `${astronomoDisplay(a.astronomo)} · ${isNaoMarcar ? 'Não Marcar' : (a.nome_escola ?? '')} (${statusLabel(a.status_tarefa)})`,
+            title: `${compact ? '' : astronomoDisplay(a.astronomo) + ' · '}${isNaoMarcar ? 'Não Marcar' : (a.nome_escola ?? '')} (${statusLabel(a.status_tarefa)})`,
           };
         }}
         style={{ height: '100%' }}
