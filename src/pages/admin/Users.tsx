@@ -47,6 +47,7 @@ export default function AdminUsers() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
+  const [deptFilter, setDeptFilter] = useState<number[]>([]); // [] = todos
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<AdminUser>>({});
   const [syncResult, setSyncResult] = useState<KommoSyncResult | null>(null);
@@ -200,17 +201,35 @@ export default function AdminUsers() {
     onError: (err: any) => toast.error(`Erro: ${err.message ?? err}`),
   });
 
+  // Lista de departamentos disponíveis derivada dos usuários carregados
+  const allDepartments = useMemo(() => {
+    const map = new Map<number, { id: number; name: string; color: string }>();
+    for (const u of users) {
+      for (const d of u.departments) {
+        if (!map.has(d.id)) map.set(d.id, { id: d.id, name: d.name, color: d.color });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [users]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return users.filter((u) => {
       if (statusFilter === 'active' && !u.is_active) return false;
       if (statusFilter === 'inactive' && u.is_active) return false;
+      if (deptFilter.length > 0) {
+        const has = u.departments.some((d) => deptFilter.includes(d.id));
+        if (!has) return false;
+      }
       if (!q) return true;
       return (
         u.email.toLowerCase().includes(q) || (u.full_name ?? '').toLowerCase().includes(q)
       );
     });
-  }, [users, search, statusFilter]);
+  }, [users, search, statusFilter, deptFilter]);
+
+  const toggleDept = (id: number) =>
+    setDeptFilter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const startEdit = (u: AdminUser) => {
     setEditingId(u.id);
@@ -305,32 +324,68 @@ export default function AdminUsers() {
         </div>
       )}
 
-      <div className="card-glass p-3 rounded-xl mb-4 flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 min-w-[240px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Buscar email ou nome..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+      <div className="card-glass p-3 rounded-xl mb-4 space-y-3">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[240px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Buscar email ou nome..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="flex gap-1 text-xs">
+            {(['active', 'inactive', 'all'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setStatusFilter(f)}
+                className={`px-3 py-1.5 rounded-full border transition-colors ${
+                  statusFilter === f
+                    ? 'bg-primary/20 text-primary border-primary/30'
+                    : 'bg-secondary/30 text-muted-foreground border-border hover:text-foreground'
+                }`}
+              >
+                {f === 'active' ? 'Ativos' : f === 'inactive' ? 'Inativos' : 'Todos'}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1 text-xs">
-          {(['active', 'inactive', 'all'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setStatusFilter(f)}
-              className={`px-3 py-1.5 rounded-full border transition-colors ${
-                statusFilter === f
-                  ? 'bg-primary/20 text-primary border-primary/30'
-                  : 'bg-secondary/30 text-muted-foreground border-border hover:text-foreground'
-              }`}
-            >
-              {f === 'active' ? 'Ativos' : f === 'inactive' ? 'Inativos' : 'Todos'}
-            </button>
-          ))}
-        </div>
+
+        {allDepartments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-[11px] text-muted-foreground mr-1">Departamento:</span>
+            {deptFilter.length > 0 && (
+              <button
+                onClick={() => setDeptFilter([])}
+                className="text-[11px] px-2 py-0.5 rounded-full border border-border text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                title="Limpar filtro"
+              >
+                <X size={10} /> Todos
+              </button>
+            )}
+            {allDepartments.map((d) => {
+              const active = deptFilter.includes(d.id);
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => toggleDept(d.id)}
+                  style={{
+                    borderColor: active ? d.color : undefined,
+                    backgroundColor: active ? d.color + '22' : undefined,
+                    color: active ? d.color : undefined,
+                  }}
+                  className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    active ? 'font-medium' : 'border-border bg-secondary/30 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {d.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="card-glass rounded-xl overflow-x-auto">
