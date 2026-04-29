@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { MapPin, Phone, Users as UsersIcon, Tag, GraduationCap, ExternalLink } from 'lucide-react';
 import type { Agendamento } from '@/areas/onboarding/calendario-astronomos/types';
 import {
-  formatDataVisita, formatCurrency, statusLabel, statusColorClass,
+  formatDataVisita, formatCurrency,
   colorForAstronomo, kommoLeadUrl, formatPhone, googleMapsUrl,
 } from '@/areas/onboarding/calendario-astronomos/types';
 import { CopyButton } from '@/components/CopyButton';
@@ -59,9 +59,6 @@ export function ProximoAgendamento({ agendamentos }: Props) {
           <p className="text-sm text-muted-foreground mt-1">
             {formatDataVisita(a)}
           </p>
-          <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full border ${statusColorClass(a.status_tarefa)}`}>
-            {statusLabel(a.status_tarefa)} · {a.desc_tarefa ?? '—'}
-          </span>
         </div>
 
         {/* Bloco das informações principais */}
