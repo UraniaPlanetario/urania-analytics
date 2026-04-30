@@ -56,9 +56,22 @@ export const STATUS_ATIVOS_IDS = ETAPAS_FUNIL
   .filter((e) => e.status_id !== STATUS_CLOSED_WON && e.status_id !== STATUS_CLOSED_LOST)
   .map((e) => e.status_id);
 
+export type Cargo = 'SDR' | 'Vendedor';
+export const CARGOS: Cargo[] = ['SDR', 'Vendedor'];
+
+/** Grupos do Kommo (`bronze.kommo_users.group_name`) que mapeiam pra cada
+ *  cargo no funil de Vendas WhatsApp. SDRs estão no grupo "SDR"; vendedores
+ *  estão divididos entre Inbound e Outbound. */
+export const CARGO_GROUPS: Record<Cargo, string[]> = {
+  SDR: ['SDR'],
+  Vendedor: ['Consultores Inbound', 'Consultores Outbound'],
+};
+
 export interface Filtros {
   /** Etapas selecionadas (status_id). Vazio = todas. Aplicado nas duas abas. */
   etapas: number[];
+  /** Cargos selecionados. Vazio = todos. Combina por interseção com `responsaveis`. */
+  cargos: Cargo[];
   /** Responsáveis (responsible_user_name). Vazio = todos. Aplicado nas duas abas. */
   responsaveis: string[];
   /** Período de criação do lead. Aplicado SÓ na aba Histórico. */
@@ -67,9 +80,36 @@ export interface Filtros {
 
 export const FILTROS_DEFAULT: Filtros = {
   etapas: [],
+  cargos: [],
   responsaveis: [],
   dateRange: { from: null, to: null },
 };
+
+/** Calcula o set de responsáveis efetivo a aplicar como filtro, combinando:
+ *   - `filtros.cargos` → expande pra lista de nomes de users naqueles cargos
+ *   - `filtros.responsaveis` → lista direta selecionada pela UI
+ *  Se ambos preenchidos, retorna a interseção. Se nenhum, retorna `null`
+ *  (= sem filtro de responsável). Se a interseção fica vazia, retorna `[]`
+ *  (= zero leads — equivalente a "ninguém"). */
+export function responsaveisEfetivos(
+  filtros: Filtros,
+  cargoMap: Map<string, Cargo>,
+): string[] | null {
+  const porCargo = filtros.cargos.length > 0
+    ? Array.from(cargoMap.entries())
+        .filter(([, cargo]) => filtros.cargos.includes(cargo))
+        .map(([nome]) => nome)
+    : null;
+
+  const direto = filtros.responsaveis.length > 0 ? filtros.responsaveis : null;
+
+  if (!porCargo && !direto) return null;
+  if (porCargo && !direto) return porCargo;
+  if (!porCargo && direto) return direto;
+  // Ambos preenchidos: interseção
+  const setCargo = new Set(porCargo);
+  return direto!.filter((r) => setCargo.has(r));
+}
 
 /** Formata segundos em "X dias" / "X horas" / "X min" pra exibição compacta. */
 export function formatDuration(seconds: number | null | undefined): string {

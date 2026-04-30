@@ -3,10 +3,12 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList, CartesianGrid, Legend,
 } from 'recharts';
 import { Loader2, ExternalLink } from 'lucide-react';
-import { useLeadsAtuaisFunil, useEntradasHoje, type LeadAtual } from '../hooks/useFunilWhatsapp';
+import {
+  useLeadsAtuaisFunil, useEntradasHoje, useResponsaveisPorCargo, type LeadAtual,
+} from '../hooks/useFunilWhatsapp';
 import {
   ETAPAS_FUNIL, STATUS_CLOSED_WON, STATUS_CLOSED_LOST,
-  kommoLeadUrl, type Filtros,
+  kommoLeadUrl, responsaveisEfetivos, type Filtros,
 } from '../types';
 import { AuditoriaTarefasBlock } from './AuditoriaTarefasBlock';
 import { DivergenciasBlock } from './DivergenciasBlock';
@@ -28,19 +30,27 @@ function fmtDays(d: number | null | undefined): string {
 export function HojeBlock({ filtros }: Props) {
   const { data: leads = [], isLoading } = useLeadsAtuaisFunil();
   const { data: entradasHoje } = useEntradasHoje();
+  const { data: cargoMap = new Map() } = useResponsaveisPorCargo();
+
+  // Set efetivo de responsáveis a aplicar (combina cargo + responsáveis)
+  const respEfetivos = useMemo(
+    () => responsaveisEfetivos(filtros, cargoMap),
+    [filtros, cargoMap],
+  );
 
   /** Leads ativos (excluindo Closed-won/Closed-lost), com filtros aplicados.
    *  Aba Hoje sempre exclui leads em Closed-lost — são "venda perdida", não
    *  estão ativos no funil. Closed-won na prática nunca aparece (vai pra
    *  Onboarding), mas excluímos por garantia. */
   const ativos = useMemo<LeadAtual[]>(() => {
+    const respSet = respEfetivos != null ? new Set(respEfetivos) : null;
     return leads.filter((l) => {
       if (l.status_id === STATUS_CLOSED_WON || l.status_id === STATUS_CLOSED_LOST) return false;
       if (filtros.etapas.length > 0 && !filtros.etapas.includes(l.status_id)) return false;
-      if (filtros.responsaveis.length > 0 && !filtros.responsaveis.includes(l.responsible_user_name ?? '')) return false;
+      if (respSet && !respSet.has(l.responsible_user_name ?? '')) return false;
       return true;
     });
-  }, [leads, filtros]);
+  }, [leads, filtros, respEfetivos]);
 
   // Ranking por responsável (todos, ordenado desc)
   const porResponsavel = useMemo(() => {

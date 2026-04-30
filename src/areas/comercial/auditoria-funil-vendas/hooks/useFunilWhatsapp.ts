@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
   PIPELINE_VENDAS_WHATS_ID, PIPELINE_VENDAS_WHATS_NAME, STATUS_CLOSED_LOST,
-  type Filtros,
+  CARGO_GROUPS, responsaveisEfetivos, type Filtros, type Cargo,
 } from '../types';
 
 /** Lista de responsible_user_name distintos dos leads no Vendas WhatsApp.
@@ -22,6 +22,35 @@ export function useResponsaveisFunil() {
       const set = new Set<string>();
       for (const row of data ?? []) if (row.responsible_user_name) set.add(row.responsible_user_name);
       return Array.from(set).sort();
+    },
+    staleTime: 60 * 60 * 1000,
+  });
+}
+
+/** Mapping nome → cargo (SDR/Vendedor) baseado em `bronze.kommo_users.group_name`.
+ *  Nomes não mapeados (= não estão em SDR/Inbound/Outbound) ficam fora do Map
+ *  e portanto não pegam filtro de cargo. */
+export function useResponsaveisPorCargo() {
+  return useQuery<Map<string, Cargo>>({
+    queryKey: ['auditoria_funil_responsaveis_por_cargo'],
+    queryFn: async () => {
+      const allGroups = [...CARGO_GROUPS.SDR, ...CARGO_GROUPS.Vendedor];
+      const { data, error } = await supabase
+        .schema('bronze')
+        .from('kommo_users')
+        .select('name, group_name')
+        .eq('is_active', true)
+        .in('group_name', allGroups);
+      if (error) throw error;
+      const map = new Map<string, Cargo>();
+      for (const row of data ?? []) {
+        if (!row.name || !row.group_name) continue;
+        const cargo = CARGO_GROUPS.SDR.includes(row.group_name) ? 'SDR'
+                    : CARGO_GROUPS.Vendedor.includes(row.group_name) ? 'Vendedor'
+                    : null;
+        if (cargo) map.set(row.name, cargo);
+      }
+      return map;
     },
     staleTime: 60 * 60 * 1000,
   });
@@ -170,12 +199,12 @@ function isoOrNull(d: Date | null): string | null {
   return d ? d.toISOString() : null;
 }
 
-function rangeKey(filtros: Filtros): string {
+function rangeKey(filtros: Filtros, respEfetivos: string[] | null): string {
   return [
     filtros.dateRange.from?.toISOString() ?? '',
     filtros.dateRange.to?.toISOString() ?? '',
     filtros.etapas.slice().sort().join(','),
-    filtros.responsaveis.slice().sort().join(','),
+    respEfetivos == null ? '*' : respEfetivos.slice().sort().join(','),
   ].join('|');
 }
 
@@ -189,8 +218,11 @@ export interface EtapaStats {
 /** RPC `gold.funil_whats_etapa_stats` — passagem, estagnado, tempo médio
  *  por etapa, com os filtros aplicados. */
 export function useEtapaStats(filtros: Filtros) {
+  const { data: cargoMap } = useResponsaveisPorCargo();
+  const respEfetivos = cargoMap ? responsaveisEfetivos(filtros, cargoMap) : null;
   return useQuery<EtapaStats[]>({
-    queryKey: ['funil_whats_etapa_stats', rangeKey(filtros)],
+    queryKey: ['funil_whats_etapa_stats', rangeKey(filtros, respEfetivos)],
+    enabled: !!cargoMap,
     queryFn: async () => {
       const { data, error } = await supabase
         .schema('gold')
@@ -198,7 +230,7 @@ export function useEtapaStats(filtros: Filtros) {
           p_from: isoOrNull(filtros.dateRange.from),
           p_to: isoOrNull(filtros.dateRange.to),
           p_etapas: filtros.etapas.length > 0 ? filtros.etapas : null,
-          p_responsaveis: filtros.responsaveis.length > 0 ? filtros.responsaveis : null,
+          p_responsaveis: respEfetivos,
         });
       if (error) throw error;
       return ((data ?? []) as EtapaStats[]).map((r) => ({
@@ -218,8 +250,11 @@ export interface KpisHistorico {
 
 /** RPC `gold.funil_whats_kpis` — KPIs gerais + total criados por hora BRT. */
 export function useKpisHistorico(filtros: Filtros) {
+  const { data: cargoMap } = useResponsaveisPorCargo();
+  const respEfetivos = cargoMap ? responsaveisEfetivos(filtros, cargoMap) : null;
   return useQuery<KpisHistorico>({
-    queryKey: ['funil_whats_kpis', rangeKey(filtros)],
+    queryKey: ['funil_whats_kpis', rangeKey(filtros, respEfetivos)],
+    enabled: !!cargoMap,
     queryFn: async () => {
       const { data, error } = await supabase
         .schema('gold')
@@ -227,7 +262,7 @@ export function useKpisHistorico(filtros: Filtros) {
           p_from: isoOrNull(filtros.dateRange.from),
           p_to: isoOrNull(filtros.dateRange.to),
           p_etapas: filtros.etapas.length > 0 ? filtros.etapas : null,
-          p_responsaveis: filtros.responsaveis.length > 0 ? filtros.responsaveis : null,
+          p_responsaveis: respEfetivos,
         });
       if (error) throw error;
       const rows = (data ?? []) as Array<{
@@ -268,8 +303,11 @@ export interface FunnelData {
 /** RPC `gold.funil_whats_funnel_data` — alimenta os funis Ganha/Perdida e
  *  os 3 cards de tempo médio. */
 export function useFunnelData(filtros: Filtros) {
+  const { data: cargoMap } = useResponsaveisPorCargo();
+  const respEfetivos = cargoMap ? responsaveisEfetivos(filtros, cargoMap) : null;
   return useQuery<FunnelData | null>({
-    queryKey: ['funil_whats_funnel_data', rangeKey(filtros)],
+    queryKey: ['funil_whats_funnel_data', rangeKey(filtros, respEfetivos)],
+    enabled: !!cargoMap,
     queryFn: async () => {
       const { data, error } = await supabase
         .schema('gold')
@@ -277,7 +315,7 @@ export function useFunnelData(filtros: Filtros) {
           p_from: isoOrNull(filtros.dateRange.from),
           p_to: isoOrNull(filtros.dateRange.to),
           p_etapas: filtros.etapas.length > 0 ? filtros.etapas : null,
-          p_responsaveis: filtros.responsaveis.length > 0 ? filtros.responsaveis : null,
+          p_responsaveis: respEfetivos,
         });
       if (error) throw error;
       const row = (data as FunnelData[] | null)?.[0];
