@@ -9,6 +9,7 @@ import {
   kommoLeadUrl, type Filtros,
 } from '../types';
 import { AuditoriaTarefasBlock } from './AuditoriaTarefasBlock';
+import { DivergenciasBlock } from './DivergenciasBlock';
 
 interface Props {
   filtros: Filtros;
@@ -239,6 +240,9 @@ export function HojeBlock({ filtros }: Props) {
 
       {/* Auditoria de tarefas (fase 3) */}
       <AuditoriaTarefasBlock ativos={ativos} />
+
+      {/* Divergências + tempo sem interação (fase 4) */}
+      <DivergenciasBlock ativos={ativos} />
     </div>
   );
 }

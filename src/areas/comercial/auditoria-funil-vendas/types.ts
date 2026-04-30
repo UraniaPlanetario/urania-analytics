@@ -91,3 +91,17 @@ export function kommoLeadUrl(leadId: number | null | undefined): string | null {
   if (leadId == null) return null;
   return `https://uraniaplanetario.kommo.com/leads/detail/${leadId}`;
 }
+
+/** Compara dois nomes normalizando acentos/caixa e checando se um contém o
+ *  outro. Usado pra detectar divergência entre `lead.responsible_user_name`
+ *  ("Marlon Silva") e custom field `Vendedor/Consultor` ("Marlon"), por ex.
+ *  Quando QUALQUER lado é vazio, retorna `true` (sem dado pra comparar). */
+export function nomesBatem(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return true;
+  const norm = (s: string) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const x = norm(a);
+  const y = norm(b);
+  if (!x || !y) return true;
+  return x.includes(y) || y.includes(x);
+}
