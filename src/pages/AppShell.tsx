@@ -9,6 +9,7 @@ import Campanhas from '@/areas/comercial/campanhas/index';
 import DesempenhoVendedor from '@/areas/comercial/desempenho-vendedor/index';
 import DesempenhoSDR from '@/areas/comercial/desempenho-sdr/index';
 import QualidadeSDR from '@/areas/comercial/qualidade-sdr/index';
+import AuditoriaFunilVendas from '@/areas/comercial/auditoria-funil-vendas/index';
 import Faturamento from '@/areas/financeiro/index';
 import CalendarioAstronomos from '@/areas/onboarding/calendario-astronomos/index';
 import MeuCalendarioAstronomo from '@/areas/individual/calendario-astronomos/index';
@@ -35,6 +36,7 @@ const protectedRoutes = [
   { path: '/comercial/desempenho-vendedor', element: <DesempenhoVendedor /> },
   { path: '/comercial/desempenho-sdr', element: <DesempenhoSDR /> },
   { path: '/comercial/qualidade-sdr', element: <QualidadeSDR /> },
+  { path: '/comercial/auditoria-funil-vendas', element: <AuditoriaFunilVendas /> },
   { path: '/marketing', element: <AreaPlaceholder title="Marketing" /> },
   { path: '/financeiro', element: <Faturamento /> },
   { path: '/onboarding', element: <AreaPlaceholder title="Onboarding" /> },

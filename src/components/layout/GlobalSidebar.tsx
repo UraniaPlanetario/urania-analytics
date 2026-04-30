@@ -64,6 +64,14 @@ const COMERCIAL_AREA: AreaConfig = {
         { id: 'desempenho-sdr', label: 'Desempenho SDR', path: '/comercial/desempenho-sdr' },
       ],
     },
+    {
+      id: 'auditorias-grp',
+      label: 'Auditorias',
+      path: '/comercial/auditorias-grp',
+      children: [
+        { id: 'auditoria-funil-vendas', label: 'Auditoria Funil de Vendas', path: '/comercial/auditoria-funil-vendas' },
+      ],
+    },
     { id: 'campanhas', label: 'Campanhas Semanais', path: '/comercial/campanhas' },
     { id: 'leads-fechados', label: 'Leads Fechados', path: '/comercial/leads-fechados' },
   ],
