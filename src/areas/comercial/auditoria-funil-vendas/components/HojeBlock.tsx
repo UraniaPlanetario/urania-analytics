@@ -8,6 +8,7 @@ import {
   ETAPAS_FUNIL, STATUS_CLOSED_WON, STATUS_CLOSED_LOST,
   kommoLeadUrl, type Filtros,
 } from '../types';
+import { AuditoriaTarefasBlock } from './AuditoriaTarefasBlock';
 
 interface Props {
   filtros: Filtros;
@@ -235,6 +236,9 @@ export function HojeBlock({ filtros }: Props) {
           </table>
         </div>
       </div>
+
+      {/* Auditoria de tarefas (fase 3) */}
+      <AuditoriaTarefasBlock ativos={ativos} />
     </div>
   );
 }

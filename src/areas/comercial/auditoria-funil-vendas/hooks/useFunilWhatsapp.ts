@@ -59,6 +59,7 @@ export interface LeadAtual {
   status_id: number;
   status_name: string | null;
   lead_created_at: string;
+  lead_updated_at: string;
   entrada_funil_at: string;
   entrada_etapa_atual_at: string;
   dias_no_funil: number;
@@ -69,6 +70,7 @@ export interface LeadAtual {
   tarefa_responsible_user_id: number | null;
   tarefa_responsible_user_name: string | null;
   dias_tarefa_vencida: number | null;
+  dias_sem_tarefa: number | null;
   ultima_msg_enviada_at: string | null;
   dias_sem_interacao: number | null;
 }
