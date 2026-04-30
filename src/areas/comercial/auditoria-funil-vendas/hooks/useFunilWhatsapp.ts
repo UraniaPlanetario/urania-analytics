@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
   PIPELINE_VENDAS_WHATS_ID, PIPELINE_VENDAS_WHATS_NAME, STATUS_CLOSED_LOST,
+  type Filtros,
 } from '../types';
 
 /** Lista de responsible_user_name distintos dos leads no Vendas WhatsApp.
@@ -161,4 +162,93 @@ export function useEntradasHoje() {
     },
     staleTime: 5 * 60 * 1000,
   });
+}
+
+// --- Aba Histórico ---
+
+function isoOrNull(d: Date | null): string | null {
+  return d ? d.toISOString() : null;
+}
+
+function rangeKey(filtros: Filtros): string {
+  return [
+    filtros.dateRange.from?.toISOString() ?? '',
+    filtros.dateRange.to?.toISOString() ?? '',
+    filtros.etapas.slice().sort().join(','),
+    filtros.responsaveis.slice().sort().join(','),
+  ].join('|');
+}
+
+export interface EtapaStats {
+  status_id: number;
+  passagem_qtd: number;
+  estagnado_qtd: number;
+  tempo_medio_dias: number | null;
+}
+
+/** RPC `gold.funil_whats_etapa_stats` — passagem, estagnado, tempo médio
+ *  por etapa, com os filtros aplicados. */
+export function useEtapaStats(filtros: Filtros) {
+  return useQuery<EtapaStats[]>({
+    queryKey: ['funil_whats_etapa_stats', rangeKey(filtros)],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('funil_whats_etapa_stats', {
+          p_from: isoOrNull(filtros.dateRange.from),
+          p_to: isoOrNull(filtros.dateRange.to),
+          p_etapas: filtros.etapas.length > 0 ? filtros.etapas : null,
+          p_responsaveis: filtros.responsaveis.length > 0 ? filtros.responsaveis : null,
+        });
+      if (error) throw error;
+      return ((data ?? []) as EtapaStats[]).map((r) => ({
+        ...r,
+        tempo_medio_dias: r.tempo_medio_dias != null ? Number(r.tempo_medio_dias) : null,
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export interface KpisHistorico {
+  criados_total: number;
+  perdidos_total: number;
+  porHora: { hora: number; total: number }[];
+}
+
+/** RPC `gold.funil_whats_kpis` — KPIs gerais + total criados por hora BRT. */
+export function useKpisHistorico(filtros: Filtros) {
+  return useQuery<KpisHistorico>({
+    queryKey: ['funil_whats_kpis', rangeKey(filtros)],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('funil_whats_kpis', {
+          p_from: isoOrNull(filtros.dateRange.from),
+          p_to: isoOrNull(filtros.dateRange.to),
+          p_etapas: filtros.etapas.length > 0 ? filtros.etapas : null,
+          p_responsaveis: filtros.responsaveis.length > 0 ? filtros.responsaveis : null,
+        });
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        criados_total: number; perdidos_total: number; hora: number; total_hora: number;
+      }>;
+      const criados = rows[0]?.criados_total ?? 0;
+      const perdidos = rows[0]?.perdidos_total ?? 0;
+      const porHora = rows
+        .filter((r) => r.hora != null)
+        .map((r) => ({ hora: Number(r.hora), total: Number(r.total_hora) }))
+        .sort((a, b) => a.hora - b.hora);
+      return { criados_total: criados, perdidos_total: perdidos, porHora };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Helper: número de dias do período (pra calcular médias diárias). */
+export function diasNoPeriodo(filtros: Filtros): number | null {
+  const { from, to } = filtros.dateRange;
+  if (!from || !to) return null;
+  const ms = to.getTime() - from.getTime();
+  return Math.max(1, Math.ceil(ms / 86400000));
 }
