@@ -5,6 +5,7 @@ import {
 import { Loader2, Info } from 'lucide-react';
 import { useEtapaStats, useKpisHistorico, diasNoPeriodo } from '../hooks/useFunilWhatsapp';
 import { ETAPAS_FUNIL, STATUS_CLOSED_WON, STATUS_CLOSED_LOST, type Filtros } from '../types';
+import { FunilHistoricoBlock } from './FunilHistoricoBlock';
 
 interface Props {
   filtros: Filtros;
@@ -233,6 +234,9 @@ export function HistoricoBlock({ filtros }: Props) {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Funis Ganha/Perdida + cards de tempo médio (fase 6) */}
+      <FunilHistoricoBlock filtros={filtros} />
     </div>
   );
 }

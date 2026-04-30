@@ -252,3 +252,49 @@ export function diasNoPeriodo(filtros: Filtros): number | null {
   const ms = to.getTime() - from.getTime();
   return Math.max(1, Math.ceil(ms / 86400000));
 }
+
+export interface FunnelData {
+  scope_total: number;
+  passou_etapa_qtd: number;
+  ganhos_total: number;
+  ganhos_apos_etapa: number;
+  perdidos_total: number;
+  perdidos_apos_etapa: number;
+  tempo_medio_etapa_dias: number | null;
+  tempo_medio_ate_ganho_dias: number | null;
+  tempo_medio_ate_perdido_dias: number | null;
+}
+
+/** RPC `gold.funil_whats_funnel_data` — alimenta os funis Ganha/Perdida e
+ *  os 3 cards de tempo médio. */
+export function useFunnelData(filtros: Filtros) {
+  return useQuery<FunnelData | null>({
+    queryKey: ['funil_whats_funnel_data', rangeKey(filtros)],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('funil_whats_funnel_data', {
+          p_from: isoOrNull(filtros.dateRange.from),
+          p_to: isoOrNull(filtros.dateRange.to),
+          p_etapas: filtros.etapas.length > 0 ? filtros.etapas : null,
+          p_responsaveis: filtros.responsaveis.length > 0 ? filtros.responsaveis : null,
+        });
+      if (error) throw error;
+      const row = (data as FunnelData[] | null)?.[0];
+      if (!row) return null;
+      const num = (v: any): number | null => v == null ? null : Number(v);
+      return {
+        scope_total: Number(row.scope_total),
+        passou_etapa_qtd: Number(row.passou_etapa_qtd),
+        ganhos_total: Number(row.ganhos_total),
+        ganhos_apos_etapa: Number(row.ganhos_apos_etapa),
+        perdidos_total: Number(row.perdidos_total),
+        perdidos_apos_etapa: Number(row.perdidos_apos_etapa),
+        tempo_medio_etapa_dias: num(row.tempo_medio_etapa_dias),
+        tempo_medio_ate_ganho_dias: num(row.tempo_medio_ate_ganho_dias),
+        tempo_medio_ate_perdido_dias: num(row.tempo_medio_ate_perdido_dias),
+      };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
