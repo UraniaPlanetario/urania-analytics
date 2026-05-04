@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { useClosedLeads, useFilteredClosed } from '../hooks/useClosedLeads';
+import {
+  useClosedLeads, useFilteredClosed, useFilteredAtivos, useFilteredCancelados,
+} from '../hooks/useClosedLeads';
 import { ClosedFilters } from '../types';
 import { ClosedFilterBar } from '../components/ClosedFilterBar';
 import { OverviewBlock } from '../components/OverviewBlock';
@@ -29,6 +31,11 @@ export default function LeadsFechadosDashboard() {
 
   const { data: leads = [], isLoading, error } = useClosedLeads();
   const filtered = useFilteredClosed(leads, filters);
+  // KPIs separados pro Overview: ativos vão por data_fechamento, cancelados
+  // por data_cancelamento (assim um lead fechado em mar e cancelado em abr
+  // aparece no KPI "Cancelados" ao filtrar abr, mas não nos KPIs principais).
+  const ativos = useFilteredAtivos(leads, filters);
+  const cancelados = useFilteredCancelados(leads, filters);
   const [activeSection, setActiveSection] = useState('overview');
 
   if (isLoading) return (
@@ -72,7 +79,7 @@ export default function LeadsFechadosDashboard() {
       </div>
 
       <div className="max-w-6xl">
-        {activeSection === 'overview' && <OverviewBlock leads={filtered} />}
+        {activeSection === 'overview' && <OverviewBlock ativos={ativos} cancelados={cancelados} />}
         {activeSection === 'vendedor' && <VendedorBlock leads={filtered} />}
         {activeSection === 'astronomos' && <AstronomoBlock leads={filtered} />}
         {activeSection === 'origem' && <OrigemBlock filters={filters} />}

@@ -13,29 +13,37 @@ function formatCurrency(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-export function OverviewBlock({ leads }: { leads: LeadClosed[] }) {
+function diariasOf(l: LeadClosed): number {
+  const n = parseInt(l.n_diarias || '0', 10);
+  return isNaN(n) ? 0 : n;
+}
+
+interface Props {
+  /** Leads não-cancelados filtrados pela `data_fechamento_fmt`. */
+  ativos: LeadClosed[];
+  /** Leads cancelados filtrados pela `data_cancelamento_fmt`. */
+  cancelados: LeadClosed[];
+}
+
+export function OverviewBlock({ ativos, cancelados }: Props) {
   const stats = useMemo(() => {
-    const total = leads.length;
-    const receita = leads.reduce((s, l) => s + (l.lead_price || 0), 0);
-    const totalDiarias = leads.reduce((s, l) => {
-      const n = parseInt(l.n_diarias || '0', 10);
-      return s + (isNaN(n) ? 0 : n);
-    }, 0);
+    const total = ativos.length;
+    const receita = ativos.reduce((s, l) => s + (l.lead_price || 0), 0);
+    const totalDiarias = ativos.reduce((s, l) => s + diariasOf(l), 0);
     const ticketMedio = totalDiarias > 0 ? receita / totalDiarias : 0;
     return { total, receita, ticketMedio, totalDiarias };
-  }, [leads]);
+  }, [ativos]);
 
+  // Diárias por mês — usa só ativos pela data de fechamento (gráfico
+  // representa "diárias fechadas no mês" sem cancelados).
   const byMonth = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const l of leads) {
-      // Usar mesma data de referencia do filtro: cancelados usam data_cancelamento, ativos usam data_fechamento
-      const dateStr = l.cancelado ? l.data_cancelamento_fmt : l.data_fechamento_fmt;
+    for (const l of ativos) {
+      const dateStr = l.data_fechamento_fmt;
       const d = dateStr ? new Date(dateStr) : null;
-      if (!d) continue;
-      if (isNaN(d.getTime())) continue;
+      if (!d || isNaN(d.getTime())) continue;
       const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
-      const n = parseInt(l.n_diarias || '0', 10);
-      map[key] = (map[key] || 0) + (isNaN(n) ? 0 : n);
+      map[key] = (map[key] || 0) + diariasOf(l);
     }
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -44,11 +52,11 @@ export function OverviewBlock({ leads }: { leads: LeadClosed[] }) {
         const label = `${MONTH_LABELS[Number(month)]}/${year.slice(2)}`;
         return { name: label, value };
       });
-  }, [leads]);
+  }, [ativos]);
 
   return (
     <div className="space-y-6">
-      {/* KPIs */}
+      {/* KPIs principais (sem cancelados) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card-glass p-4 rounded-xl text-center">
           <p className="text-sm text-muted-foreground">Total de Leads Fechados</p>
@@ -68,7 +76,18 @@ export function OverviewBlock({ leads }: { leads: LeadClosed[] }) {
         </div>
       </div>
 
-      {/* Fechamentos por Mês */}
+      {/* KPI separado pra cancelados — filtrado por data de cancelamento */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="card-glass p-4 rounded-xl text-center border border-rose-500/30">
+          <p className="text-sm text-muted-foreground">Leads Cancelados</p>
+          <p className="text-3xl font-bold text-rose-500">{cancelados.length.toLocaleString('pt-BR')}</p>
+          <p className="text-[10px] text-muted-foreground/70 mt-1 italic">
+            *No período filtrado pela data de cancelamento
+          </p>
+        </div>
+      </div>
+
+      {/* Diárias por Mês */}
       <div className="card-glass p-4 rounded-xl">
         <h3 className="text-base font-semibold text-foreground mb-4">Diárias Fechadas por Mês</h3>
         <ResponsiveContainer width="100%" height={300}>
@@ -82,7 +101,6 @@ export function OverviewBlock({ leads }: { leads: LeadClosed[] }) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-
     </div>
   );
 }

@@ -58,6 +58,19 @@ export function useLeadsOrigem() {
   });
 }
 
+function ymd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function dateInRange(ref: string, range: { from: Date | null; to: Date | null }): boolean {
+  if (range.from && ref < ymd(range.from)) return false;
+  if (range.to && ref > ymd(range.to)) return false;
+  return true;
+}
+
 /** Pega a string YYYY-MM-DD do campo de referência. Cancelados fora de
  *  modo "criacao" usam data de cancelamento como referência (mantém a regra
  *  antiga). Em modo "criacao", sempre lead_created_at. */
@@ -69,6 +82,10 @@ function getRefDate(l: LeadClosed, dateRef: 'fechamento' | 'criacao'): string | 
   return ref?.slice(0, 10) ?? null;
 }
 
+/** Filtragem unificada (legado): mistura ativos pela data_fechamento e
+ *  cancelados pela data_cancelamento. Ainda usado pelas abas Vendedor /
+ *  Astrônomo / Origem que esperam UMA lista. Pra o Overview e KPIs
+ *  separados de cancelados, use `useFilteredAtivos` + `useFilteredCancelados`. */
 export function useFilteredClosed(leads: LeadClosed[], filters: ClosedFilters) {
   return useMemo(() => {
     return leads.filter((l) => {
@@ -78,19 +95,48 @@ export function useFilteredClosed(leads: LeadClosed[], filters: ClosedFilters) {
       if (filters.cancelado === 'nao' && l.cancelado) return false;
       const ref = getRefDate(l, filters.dateRef);
       if (!ref) return false;
-      if (filters.dateRange.from) {
-        const y = filters.dateRange.from.getFullYear();
-        const m = String(filters.dateRange.from.getMonth() + 1).padStart(2, '0');
-        const d = String(filters.dateRange.from.getDate()).padStart(2, '0');
-        if (ref < `${y}-${m}-${d}`) return false;
-      }
-      if (filters.dateRange.to) {
-        const y = filters.dateRange.to.getFullYear();
-        const m = String(filters.dateRange.to.getMonth() + 1).padStart(2, '0');
-        const d = String(filters.dateRange.to.getDate()).padStart(2, '0');
-        if (ref > `${y}-${m}-${d}`) return false;
-      }
-      return true;
+      return dateInRange(ref, filters.dateRange);
+    });
+  }, [leads, filters]);
+}
+
+/** Leads não-cancelados ("vendas fechadas") filtrados pela `data_fechamento_fmt`.
+ *  Usado pelos KPIs principais do Overview (Total / Diárias / Faturamento)
+ *  pra excluir leads cancelados independente de quando o cancelamento ocorreu.
+ *  Em modo `dateRef='criacao'`, filtra por `lead_created_at`. */
+export function useFilteredAtivos(leads: LeadClosed[], filters: ClosedFilters) {
+  return useMemo(() => {
+    if (filters.cancelado === 'sim') return []; // status=Cancelados → zera ativos
+    return leads.filter((l) => {
+      if (l.cancelado) return false;
+      if (filters.vendedores.length > 0 && !filters.vendedores.includes(l.vendedor || '')) return false;
+      if (filters.astronomos.length > 0 && !filters.astronomos.includes(l.astronomo || '')) return false;
+      const ref = filters.dateRef === 'criacao'
+        ? l.lead_created_at?.slice(0, 10) ?? null
+        : l.data_fechamento_fmt?.slice(0, 10) ?? null;
+      if (!ref) return false;
+      return dateInRange(ref, filters.dateRange);
+    });
+  }, [leads, filters]);
+}
+
+/** Leads cancelados filtrados pela `data_cancelamento_fmt` (NÃO pela data
+ *  de fechamento). Usado pelo KPI "Leads Cancelados" do Overview — um lead
+ *  fechado em março e cancelado em abril aparece aqui ao filtrar abril,
+ *  mesmo que sua data de fechamento esteja fora do período.
+ *  Em modo `dateRef='criacao'`, filtra por `lead_created_at`. */
+export function useFilteredCancelados(leads: LeadClosed[], filters: ClosedFilters) {
+  return useMemo(() => {
+    if (filters.cancelado === 'nao') return []; // status=Ativos → zera cancelados
+    return leads.filter((l) => {
+      if (!l.cancelado) return false;
+      if (filters.vendedores.length > 0 && !filters.vendedores.includes(l.vendedor || '')) return false;
+      if (filters.astronomos.length > 0 && !filters.astronomos.includes(l.astronomo || '')) return false;
+      const ref = filters.dateRef === 'criacao'
+        ? l.lead_created_at?.slice(0, 10) ?? null
+        : l.data_cancelamento_fmt?.slice(0, 10) ?? null;
+      if (!ref) return false;
+      return dateInRange(ref, filters.dateRange);
     });
   }, [leads, filters]);
 }
