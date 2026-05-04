@@ -15,6 +15,7 @@ interface AdminUser {
   synced_from_hub_at: string | null;
   kommo_user_id: number | null;
   astronomo: string | null;
+  vendedor_consultor: string | null;
   departments: { id: number; name: string; color: string; role: string }[];
   bi_role: BIRole | null;
 }
@@ -23,6 +24,19 @@ const ASTRONOMOS_OPCOES = [
   'Aline', 'Bruno', 'Cristian', 'Emerson', 'Marlon', 'Matheus Magalhães',
   'Matheus Nascimento', 'Milenko', 'Nathalia', 'Olivia', 'Paulo', 'Priscilla',
   'Procópio', 'Roberto', 'Rogério', 'Samantha', 'Sione', 'Thales', 'Thiago',
+];
+
+/** Vendedores ativos (texto exato do custom field "Vendedor/Consultor" no Kommo).
+ *  Lista derivada de DISTINCT em gold.leads_closed.vendedor; atualize quando
+ *  novo vendedor for cadastrado no Kommo. */
+const VENDEDORES_OPCOES = [
+  'Alessandra Araújo', 'Ana Paula', 'Ashley Novais', 'Aurélio', 'Catarine Manara',
+  'Cintia Santos', 'Cristina Matuguma', 'Daiana Leia', 'Emilly Fernandes',
+  'Fred Peixoto', 'Geneviéve Pinheiro', 'Graciana', 'Guilherme Lopes',
+  'Isadora Martins', 'Janaina Almeida', 'Juliana Rodrigues', 'Kalyne Campos',
+  'Karen Medeiros', 'Matheus', 'Matheus Flores', 'Patrícia Guidini',
+  'Paula Machado', 'Perla Nogueira', 'Priscila', 'Rafael Araújo',
+  'Rafaela Freitas', 'Raquel Gonçalves', 'Thiago Barbosa', 'Winicius',
 ];
 
 interface KommoSyncResult {
@@ -65,7 +79,7 @@ export default function AdminUsers() {
       const [usersRes, deptsRes, accessRes] = await Promise.all([
         supabase
           .from('users')
-          .select('id, email, full_name, is_active, is_global_admin, auth_user_id, synced_from_hub_at, kommo_user_id, astronomo')
+          .select('id, email, full_name, is_active, is_global_admin, auth_user_id, synced_from_hub_at, kommo_user_id, astronomo, vendedor_consultor')
           .order('email'),
         supabase
           .from('user_departments')
@@ -110,6 +124,7 @@ export default function AdminUsers() {
       is_global_admin: boolean;
       bi_role: BIRole | null;
       astronomo: string | null;
+      vendedor_consultor: string | null;
     }) => {
       const { error: updErr } = await supabase
         .from('users')
@@ -117,6 +132,7 @@ export default function AdminUsers() {
           is_active: input.is_active,
           is_global_admin: input.is_global_admin,
           astronomo: input.astronomo,
+          vendedor_consultor: input.vendedor_consultor,
           updated_at: new Date().toISOString(),
         })
         .eq('id', input.id);
@@ -247,6 +263,7 @@ export default function AdminUsers() {
       is_global_admin: u.is_global_admin,
       bi_role: u.bi_role,
       astronomo: u.astronomo,
+      vendedor_consultor: u.vendedor_consultor,
     });
   };
 
@@ -262,6 +279,7 @@ export default function AdminUsers() {
       is_global_admin: draft.is_global_admin ?? u.is_global_admin,
       bi_role: draft.bi_role ?? u.bi_role,
       astronomo: draft.astronomo !== undefined ? (draft.astronomo as string | null) : u.astronomo,
+      vendedor_consultor: draft.vendedor_consultor !== undefined ? (draft.vendedor_consultor as string | null) : u.vendedor_consultor,
     });
   };
 
@@ -410,6 +428,7 @@ export default function AdminUsers() {
               <th className="text-left py-3 px-3 font-medium">Global Admin</th>
               <th className="text-left py-3 px-3 font-medium">Role BI</th>
               <th className="text-left py-3 px-3 font-medium" title="Vincula o usuário a um astrônomo (formato: 'Aline', 'Procópio', 'Matheus Magalhães'). Habilita o calendário individual.">Astrônomo</th>
+              <th className="text-left py-3 px-3 font-medium" title="Vincula o usuário ao vendedor (texto exato do custom field 'Vendedor/Consultor' no Kommo). Habilita o /individual/vendedor.">Vendedor</th>
               <th className="text-right py-3 px-3 font-medium">Ações</th>
             </tr>
           </thead>
@@ -545,6 +564,28 @@ export default function AdminUsers() {
                     ) : u.astronomo ? (
                       <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
                         {u.astronomo}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">—</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-3">
+                    {isEditing ? (
+                      <select
+                        value={(draft.vendedor_consultor !== undefined ? draft.vendedor_consultor : u.vendedor_consultor) ?? ''}
+                        onChange={(e) =>
+                          setDraft({ ...draft, vendedor_consultor: e.target.value === '' ? null : e.target.value })
+                        }
+                        className="text-xs px-2 py-1 rounded bg-secondary border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="">— nenhum</option>
+                        {VENDEDORES_OPCOES.map((nome) => (
+                          <option key={nome} value={nome}>{nome}</option>
+                        ))}
+                      </select>
+                    ) : u.vendedor_consultor ? (
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                        {u.vendedor_consultor}
                       </span>
                     ) : (
                       <span className="text-xs text-muted-foreground italic">—</span>

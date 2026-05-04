@@ -101,6 +101,7 @@ const SECTIONS: AreaSection[] = [
     label: 'Acesso Individual',
     areas: [
       { id: 'meu-calendario', label: 'Calendário Astrônomos', icon: GraduationCap, path: '/individual/calendario-astronomos' },
+      { id: 'meu-vendedor',   label: 'Meu Desempenho',         icon: TrendingUp,    path: '/individual/vendedor' },
     ],
   },
   {

@@ -13,6 +13,7 @@ import AuditoriaFunilVendas from '@/areas/comercial/auditoria-funil-vendas/index
 import Faturamento from '@/areas/financeiro/index';
 import CalendarioAstronomos from '@/areas/onboarding/calendario-astronomos/index';
 import MeuCalendarioAstronomo from '@/areas/individual/calendario-astronomos/index';
+import MeuDesempenhoVendedor from '@/areas/individual/desempenho-vendedor/index';
 import AreaPlaceholder from '@/areas/placeholder';
 import Home from '@/pages/Home';
 import AdminUsers from '@/pages/admin/Users';
@@ -42,6 +43,7 @@ const protectedRoutes = [
   { path: '/onboarding', element: <AreaPlaceholder title="Onboarding" /> },
   { path: '/onboarding/calendario-astronomos', element: <CalendarioAstronomos /> },
   { path: '/individual/calendario-astronomos', element: <MeuCalendarioAstronomo /> },
+  { path: '/individual/vendedor', element: <MeuDesempenhoVendedor /> },
   { path: '/tecnologia', element: <AreaPlaceholder title="Tecnologia" /> },
   { path: '/admin/usuarios', element: <AdminUsers /> },
   { path: '/admin/departamentos', element: <AdminDepartments /> },
