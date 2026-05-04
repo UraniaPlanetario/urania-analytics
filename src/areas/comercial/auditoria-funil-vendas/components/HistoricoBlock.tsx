@@ -52,18 +52,9 @@ export function HistoricoBlock({ filtros }: Props) {
       .filter((d) => d.qtd > 0);
   }, [etapasOrdem, statsByStatus]);
 
-  const dataEstagnados = useMemo(() => {
-    return etapasOrdem
-      .filter((e) => e.status_id !== STATUS_CLOSED_LOST) // estagnado em lost não faz sentido
-      .map((e) => ({
-        etapa: e.status_name,
-        qtd: statsByStatus.get(e.status_id)?.estagnado_qtd ?? 0,
-      }))
-      .filter((d) => d.qtd > 0);
-  }, [etapasOrdem, statsByStatus]);
-
   const dataTempoMedio = useMemo(() => {
     return etapasOrdem
+      .filter((e) => e.status_id !== STATUS_CLOSED_LOST) // tempo em "lost" não é informativo
       .map((e) => {
         const s = statsByStatus.get(e.status_id);
         return {
@@ -102,7 +93,7 @@ export function HistoricoBlock({ filtros }: Props) {
         <p className="text-lg font-semibold text-foreground">Selecione um período</p>
         <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
           A aba Histórico precisa de um intervalo de datas no filtro acima pra calcular
-          passagem por etapa, leads estagnados e demais métricas do período.
+          passagem por etapa, tempo médio e demais métricas do período.
         </p>
       </div>
     );
@@ -152,30 +143,6 @@ export function HistoricoBlock({ filtros }: Props) {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      </div>
-
-      {/* Estagnados por etapa */}
-      <div className="card-glass p-4 rounded-xl">
-        <p className="text-sm font-semibold mb-1">Leads estagnados por etapa</p>
-        <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1">
-          <Info size={11} /> Leads que estão hoje na etapa mas que entraram nela ANTES do período filtrado — ou seja, parados.
-        </p>
-        <ResponsiveContainer width="100%" height={320}>
-          <BarChart data={dataEstagnados} margin={{ bottom: 70 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="etapa" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} height={70} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip {...TOOLTIP_STYLE} />
-            <Bar dataKey="qtd" fill="#f59e0b">
-              <LabelList dataKey="qtd" position="top" fill="hsl(var(--foreground))" fontSize={10} />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-        {dataEstagnados.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground py-6">
-            Nenhum lead estagnado no recorte. Significa que todos os leads do scope que estão em alguma etapa hoje entraram nela dentro do período filtrado.
-          </p>
-        )}
       </div>
 
       {/* Tempo médio na etapa */}
