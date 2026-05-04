@@ -36,20 +36,26 @@ export function OverviewBlock({ ativos, cancelados }: Props) {
 
   // Diárias por mês — usa só ativos pela data de fechamento (gráfico
   // representa "diárias fechadas no mês" sem cancelados).
+  // ATENÇÃO: parse a string "YYYY-MM-DD" direto. Não usar `new Date(str)`
+  // porque interpreta como UTC midnight, e em BRT (UTC-3) o dia 1 vira
+  // dia 30 do mês anterior pelas 21h — bug clássico que jogava leads do
+  // dia 01/04 pra "março" no gráfico.
   const byMonth = useMemo(() => {
     const map: Record<string, number> = {};
     for (const l of ativos) {
       const dateStr = l.data_fechamento_fmt;
-      const d = dateStr ? new Date(dateStr) : null;
-      if (!d || isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
+      if (!dateStr || dateStr.length < 7) continue;
+      const year = dateStr.slice(0, 4);
+      const month1 = dateStr.slice(5, 7); // "04" pra abril (1-indexado)
+      const key = `${year}-${month1}`;
       map[key] = (map[key] || 0) + diariasOf(l);
     }
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, value]) => {
-        const [year, month] = key.split('-');
-        const label = `${MONTH_LABELS[Number(month)]}/${year.slice(2)}`;
+        const [year, month1] = key.split('-');
+        const monthIndex = Number(month1) - 1; // pra MONTH_LABELS (0-indexado)
+        const label = `${MONTH_LABELS[monthIndex]}/${year.slice(2)}`;
         return { name: label, value };
       });
   }, [ativos]);
