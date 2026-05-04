@@ -16,6 +16,14 @@ const TABS: { id: TabId; label: string; icon: any }[] = [
   { id: 'desempenho', label: 'Desempenho',                  icon: BarChart3 },
 ];
 
+/** "Bom dia / tarde / noite" baseado na hora local. Padrão pt-BR. */
+function saudacao(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Bom dia';
+  if (h < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
 export default function MeuDesempenhoVendedorDashboard() {
   const { user, isGlobalAdmin } = useAuth();
   const [tab, setTab] = useState<TabId>('visao');
@@ -47,7 +55,7 @@ export default function MeuDesempenhoVendedorDashboard() {
     return (
       <div className="space-y-5">
         <div>
-          <h1 className="text-2xl font-bold">Meu Desempenho</h1>
+          <h1 className="text-2xl font-bold">Painel do Vendedor</h1>
           <p className="text-sm text-muted-foreground">Acesso individual do vendedor</p>
         </div>
         <div className="card-glass p-8 rounded-xl flex items-start gap-3">
@@ -76,10 +84,15 @@ export default function MeuDesempenhoVendedorDashboard() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Meu Desempenho</h1>
+        <h1 className="text-2xl font-bold">
+          {saudacao()}, {vendedor}!
+        </h1>
         <p className="text-sm text-muted-foreground">
-          {user?.full_name && !impersonado ? `Olá, ${user.full_name}.` : ''} Vendedor: <strong>{vendedor}</strong>
+          Painel do Vendedor
           {impersonado && <span className="ml-2 text-amber-500 italic">(visualizando como)</span>}
+          {user?.full_name && !impersonado && user.full_name !== vendedor
+            ? <span className="ml-2 text-muted-foreground/70">— logado como {user.full_name}</span>
+            : null}
         </p>
       </div>
 
@@ -119,7 +132,7 @@ export default function MeuDesempenhoVendedorDashboard() {
               </p>
             </div>
       )}
-      {tab === 'desempenho' && <DesempenhoBlock vendedor={vendedor} />}
+      {tab === 'desempenho' && <DesempenhoBlock vendedor={vendedor} vendedorOverride={impersonado?.vendedor} />}
     </div>
   );
 }

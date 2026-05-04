@@ -1,34 +1,26 @@
 import { useState, useMemo } from 'react';
 import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList, CartesianGrid,
+} from 'recharts';
 import { Loader2 } from 'lucide-react';
 import { DateRangePicker } from '@/components/DateRangePicker';
-import {
-  useLeadsVendedor, useTempoResposta,
-} from '@/areas/comercial/desempenho-vendedor/hooks/useDesempenhoVendedor';
-import {
-  useAlteracoesResumo, useAlteracoesMensal,
-} from '@/areas/comercial/desempenho-sdr/hooks/useDesempenhoSDR';
-import { BlocoTempoResposta } from '@/areas/comercial/desempenho-vendedor/components/BlocoTempoResposta';
-import { BlocoCamposAlterados } from '@/areas/comercial/desempenho-vendedor/components/BlocoCamposAlterados';
-import { BlocoFechamentos } from '@/areas/comercial/desempenho-vendedor/components/BlocoFechamentos';
-import { BlocoDiarias } from '@/areas/comercial/desempenho-vendedor/components/BlocoDiarias';
-import { BlocoFaturamento } from '@/areas/comercial/desempenho-vendedor/components/BlocoFaturamento';
-import { BlocoCancelamentos } from '@/areas/comercial/desempenho-vendedor/components/BlocoCancelamentos';
+import { useTempoResposta } from '@/areas/comercial/desempenho-vendedor/hooks/useDesempenhoVendedor';
+import { useAlteracoesMensal } from '@/areas/comercial/desempenho-sdr/hooks/useDesempenhoSDR';
+import { FAIXAS_TEMPO, calcNotaTempo, formatNumber } from '@/areas/comercial/desempenho-vendedor/types';
+import { useMeusLeadsFechados, type MeuLeadFechado } from '../hooks/useMeuVendedor';
 
 interface Props {
   vendedor: string;
+  vendedorOverride?: string;
 }
 
-const TABS = [
-  { id: 'tempo',         label: 'Tempo Resposta' },
-  { id: 'campos',        label: 'Campos Alterados' },
-  { id: 'fechamentos',   label: 'Fechamentos' },
-  { id: 'diarias',       label: 'Diárias' },
-  { id: 'faturamento',   label: 'Faturamento' },
-  { id: 'cancelamentos', label: 'Cancelamentos' },
-] as const;
+const TOOLTIP_STYLE = {
+  contentStyle: { backgroundColor: 'hsl(240, 10%, 10%)', border: 'none', borderRadius: 8 },
+  itemStyle: { color: '#fff' },
+};
 
-type TabId = typeof TABS[number]['id'];
+const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 function toISO(d: Date | null): string | null {
   if (!d) return null;
@@ -38,62 +30,150 @@ function toISO(d: Date | null): string | null {
   return `${y}-${m}-${day}`;
 }
 
-/** Espelho do dashboard /comercial/desempenho-vendedor — mesmos blocos
- *  de Tempo Resposta, Campos Alterados, Fechamentos, Diárias, Faturamento e
- *  Cancelamentos — mas com filtro de vendedor FIXO no logado.
+function formatCurrency(v: number): string {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+}
+
+function diariasOf(l: MeuLeadFechado): number {
+  const n = parseInt(l.n_diarias || '0', 10);
+  return isNaN(n) ? 0 : n;
+}
+
+/** Agrega leads por mês (a partir de uma string YYYY-MM-DD), retornando
+ *  ordenado cronologicamente. Parse direto da string pra evitar timezone shift. */
+function aggMensal<T>(items: T[], getDate: (i: T) => string | null, getValue: (i: T) => number) {
+  const map: Record<string, number> = {};
+  for (const it of items) {
+    const ymd = getDate(it);
+    if (!ymd || ymd.length < 7) continue;
+    const key = ymd.slice(0, 7); // YYYY-MM
+    map[key] = (map[key] ?? 0) + getValue(it);
+  }
+  return Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => {
+      const [year, month] = key.split('-');
+      return { name: `${MONTH_LABELS[Number(month) - 1]}/${year.slice(2)}`, value };
+    });
+}
+
+/** Painel do Vendedor — aba Desempenho. Layout em SEÇÕES (sem tabs).
  *
- *  Reutiliza os componentes BlocoXxx do gerencial e os mesmos hooks de dados,
- *  filtrando localmente pelo nome do vendedor (que aqui é único). */
-export function DesempenhoBlock({ vendedor }: Props) {
+ *  Fonte unificada com a Visão Geral: usa `useMeusLeadsFechados` (= gold.leads_closed)
+ *  pros KPIs/gráficos de fechamentos, diárias, faturamento e cancelamentos.
+ *  Antes usava cubo_leads_consolidado e divergia da Visão Geral. */
+export function DesempenhoBlock({ vendedor, vendedorOverride }: Props) {
   const today = new Date();
-  // Default = "Último mês completo": começo a meio do mês, dados ainda esparsos;
-  // pegar o mês anterior como referência inicial dá visualização útil já no abrir.
-  // Usuário pode expandir/restringir no DateRangePicker.
   const lastMonthStart = startOfMonth(subMonths(today, 1));
   const lastMonthEnd = endOfMonth(subMonths(today, 1));
   const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({
     from: lastMonthStart,
     to: lastMonthEnd,
   });
-  const [tab, setTab] = useState<TabId>('tempo');
 
   const dateFromISO = toISO(dateRange.from);
   const dateToISO = toISO(dateRange.to);
 
-  const { data: leads = [], isLoading: lLoading, error: lErr } = useLeadsVendedor();
-  const { data: mensagens = [], isLoading: mLoading, error: mErr } = useTempoResposta(dateFromISO, dateToISO);
-  const { data: alteracoesResumo = [], isLoading: arLoading, error: arErr } = useAlteracoesResumo(dateFromISO, dateToISO);
-  const { data: alteracoesMensal = [], isLoading: amLoading, error: amErr } = useAlteracoesMensal(dateFromISO, dateToISO);
+  // Mesma fonte da Visão Geral (gold.leads_closed via RPC)
+  const { data: leads = [], isLoading: lLoading } = useMeusLeadsFechados(vendedorOverride);
+  const { data: mensagens = [], isLoading: mLoading } = useTempoResposta(dateFromISO, dateToISO);
+  const { data: alteracoesMensal = [], isLoading: aLoading } = useAlteracoesMensal(dateFromISO, dateToISO);
 
-  // Filtra TUDO pelo vendedor logado
-  const filteredLeads = useMemo(() => leads.filter((l) => l.vendedor === vendedor), [leads, vendedor]);
-  const filteredMensagens = useMemo(
-    () => mensagens.filter((m) => m.responder_user_name === vendedor),
+  // Filtra mensagens só do vendedor
+  const minhasMensagens = useMemo(
+    () => mensagens.filter((m) => m.responder_user_name === vendedor && m.recebida_dentro_janela),
     [mensagens, vendedor],
   );
-  const filteredAltResumo = useMemo(
-    () => alteracoesResumo.filter((r) => r.user_name === vendedor),
-    [alteracoesResumo, vendedor],
-  );
-  const filteredAltMensal = useMemo(
-    () => alteracoesMensal.filter((r) => r.user_name === vendedor),
+  const minhasAlteracoes = useMemo(
+    () => alteracoesMensal.filter((a) => a.user_name === vendedor),
     [alteracoesMensal, vendedor],
   );
 
-  // Pra blocos que filtram por data de fechamento (Fechamentos / Diárias)
-  const leadsFilteredByDate = useMemo(() => {
-    if (!dateFromISO && !dateToISO) return filteredLeads;
-    return filteredLeads.filter((l) => {
-      if (!l.data_de_fechamento) return false;
-      const d = l.data_de_fechamento.slice(0, 10);
-      if (dateFromISO && d < dateFromISO) return false;
-      if (dateToISO && d > dateToISO) return false;
+  // Ativos (não cancelados) com data_fechamento_fmt no período
+  const ativos = useMemo(() => {
+    return leads.filter((l) => {
+      if (l.cancelado) return false;
+      if (!l.data_fechamento_fmt) return false;
+      if (dateFromISO && l.data_fechamento_fmt < dateFromISO) return false;
+      if (dateToISO && l.data_fechamento_fmt > dateToISO) return false;
       return true;
     });
-  }, [filteredLeads, dateFromISO, dateToISO]);
+  }, [leads, dateFromISO, dateToISO]);
 
-  const isLoading = lLoading || mLoading || arLoading || amLoading;
-  const error = lErr || mErr || arErr || amErr;
+  // Cancelados (com data_cancelamento_fmt no período)
+  const cancelados = useMemo(() => {
+    return leads.filter((l) => {
+      if (!l.cancelado) return false;
+      if (!l.data_cancelamento_fmt) return false;
+      if (dateFromISO && l.data_cancelamento_fmt < dateFromISO) return false;
+      if (dateToISO && l.data_cancelamento_fmt > dateToISO) return false;
+      return true;
+    });
+  }, [leads, dateFromISO, dateToISO]);
+
+  // === Tempo de Resposta ===
+  const tempoStats = useMemo(() => {
+    const faixaCounts = Object.fromEntries(FAIXAS_TEMPO.map((f) => [f, 0])) as Record<string, number>;
+    let total = 0;
+    for (const m of minhasMensagens) {
+      if (m.faixa in faixaCounts) {
+        faixaCounts[m.faixa] += 1;
+        total += 1;
+      }
+    }
+    const nota = total > 0 ? calcNotaTempo(faixaCounts) : 0;
+    return {
+      total,
+      nota,
+      distribuicao: FAIXAS_TEMPO.map((f) => ({ name: f, value: faixaCounts[f] ?? 0 })),
+    };
+  }, [minhasMensagens]);
+
+  // === Campos Alterados ===
+  const camposStats = useMemo(() => {
+    const total = minhasAlteracoes.reduce((s, a) => s + a.total, 0);
+    const mensal = [...minhasAlteracoes]
+      .sort((a, b) => a.mes_key.localeCompare(b.mes_key))
+      .map((a) => {
+        const [year, month] = a.mes_key.split('-');
+        return { name: `${MONTH_LABELS[Number(month) - 1]}/${year.slice(2)}`, value: a.total };
+      });
+    return { total, mensal };
+  }, [minhasAlteracoes]);
+
+  // === Vendas (KPIs juntos) ===
+  const vendasStats = useMemo(() => {
+    const totalLeads = ativos.length;
+    const totalDiarias = ativos.reduce((s, l) => s + diariasOf(l), 0);
+    const diariasPorLead = totalLeads > 0 ? totalDiarias / totalLeads : 0;
+    const faturamento = ativos.reduce((s, l) => s + (l.lead_price || 0), 0);
+    const totalCancelamentos = cancelados.length;
+    // Churn = cancelamentos / (fechamentos + cancelamentos) — proporção de leads
+    // do período que viraram cancelamento.
+    const totalGeral = totalLeads + totalCancelamentos;
+    const churnPct = totalGeral > 0 ? (totalCancelamentos / totalGeral) * 100 : 0;
+    return { totalLeads, totalDiarias, diariasPorLead, faturamento, totalCancelamentos, churnPct };
+  }, [ativos, cancelados]);
+
+  // Datasets mensais
+  const fechMensal = useMemo(
+    () => aggMensal(ativos, (l) => l.data_fechamento_fmt, () => 1),
+    [ativos],
+  );
+  const diariasMensal = useMemo(
+    () => aggMensal(ativos, (l) => l.data_fechamento_fmt, (l) => diariasOf(l)),
+    [ativos],
+  );
+  const faturamentoMensal = useMemo(
+    () => aggMensal(ativos, (l) => l.data_fechamento_fmt, (l) => l.lead_price ?? 0),
+    [ativos],
+  );
+  const cancelMensal = useMemo(
+    () => aggMensal(cancelados, (l) => l.data_cancelamento_fmt, () => 1),
+    [cancelados],
+  );
+
+  const isLoading = lLoading || mLoading || aLoading;
 
   if (isLoading) {
     return (
@@ -103,84 +183,206 @@ export function DesempenhoBlock({ vendedor }: Props) {
     );
   }
 
-  if (error) {
-    return (
-      <div className="card-glass p-8 rounded-xl text-center">
-        <p className="text-destructive font-medium">Erro ao carregar dados</p>
-        <p className="text-sm text-muted-foreground mt-2">{(error as Error).message}</p>
-      </div>
-    );
-  }
-
-  const applyQuick = (from: Date, to: Date) => setDateRange({ from, to });
-
-  const quickFilters = [
-    { label: 'Este Mês', action: () => applyQuick(startOfMonth(today), today) },
-    { label: 'Último Mês', action: () => { const prev = subMonths(today, 1); applyQuick(startOfMonth(prev), endOfMonth(prev)); } },
-    { label: 'Este Ano', action: () => applyQuick(new Date(today.getFullYear(), 0, 1), today) },
-  ];
-
   return (
-    <div className="space-y-5">
-      {/* Filtro de data */}
+    <div className="space-y-8">
+      {/* Filtro de período (compartilhado pelas seções) */}
       <div className="card-glass p-4 rounded-xl">
         <label className="text-xs text-muted-foreground block mb-1">Período</label>
         <DateRangePicker
           from={dateRange.from}
           to={dateRange.to}
           onChange={setDateRange}
+          showPresets
         />
-        <div className="flex flex-wrap gap-1 mt-2">
-          {quickFilters.map((qf) => (
-            <button
-              key={qf.label}
-              type="button"
-              onClick={qf.action}
-              className="text-[10px] px-2 py-0.5 rounded-full bg-secondary/80 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-            >
-              {qf.label}
-            </button>
-          ))}
+      </div>
+
+      {/* === Seção: Tempo de Resposta === */}
+      <section className="space-y-4">
+        <div className="border-b pb-2">
+          <h2 className="text-xl font-semibold">Tempo de Resposta</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Suas respostas a mensagens recebidas dentro da janela comercial (seg-sex 7h-19h BRT).
+          </p>
         </div>
-      </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="card-glass p-4 rounded-xl text-center">
+            <p className="text-sm text-muted-foreground">Nota Geral do Tempo de Resposta</p>
+            <p className="text-4xl font-bold text-foreground">{tempoStats.nota.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground mt-1">Pondera as faixas (0 a 1)</p>
+          </div>
+          <div className="card-glass p-4 rounded-xl text-center">
+            <p className="text-sm text-muted-foreground">Total de Mensagens Enviadas</p>
+            <p className="text-4xl font-bold text-foreground">{formatNumber(tempoStats.total)}</p>
+          </div>
+        </div>
+        <div className="card-glass p-4 rounded-xl">
+          <h3 className="text-base font-semibold mb-3">Distribuição por faixa de tempo</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={tempoStats.distribuicao} margin={{ left: 10, right: 10, top: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="name" stroke="hsl(240, 5%, 65%)" tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
+              <YAxis stroke="hsl(240, 5%, 65%)" tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
+              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatNumber(v), 'Mensagens']} />
+              <Bar dataKey="value" fill="hsl(263, 70%, 58%)" radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="value" position="top" fill="hsl(240, 5%, 65%)" fontSize={11} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
 
-      {/* Tabs */}
-      <div className="card-glass p-1 rounded-xl flex flex-wrap gap-1">
-        {TABS.map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-              tab === id
-                ? 'bg-primary text-white font-medium'
-                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* === Seção: Campos Alterados === */}
+      <section className="space-y-4">
+        <div className="border-b pb-2">
+          <h2 className="text-xl font-semibold">Campos Alterados</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Quantidade de alterações em campos do CRM no período (proxy de atividade humana).
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="card-glass p-4 rounded-xl text-center">
+            <p className="text-sm text-muted-foreground">Total de Campos Alterados</p>
+            <p className="text-4xl font-bold text-foreground">{formatNumber(camposStats.total)}</p>
+          </div>
+        </div>
+        <div className="card-glass p-4 rounded-xl">
+          <h3 className="text-base font-semibold mb-3">Alterações mensais</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={camposStats.mensal} margin={{ left: 10, right: 10, top: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="name" stroke="hsl(240, 5%, 65%)" tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
+              <YAxis stroke="hsl(240, 5%, 65%)" tick={{ fill: 'hsl(240, 5%, 65%)', fontSize: 12 }} />
+              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatNumber(v), 'Alterações']} />
+              <Bar dataKey="value" fill="hsl(263, 70%, 58%)" radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="value" position="top" fill="hsl(240, 5%, 65%)" fontSize={11} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          {camposStats.mensal.length === 0 && (
+            <p className="text-center text-sm text-muted-foreground py-6">Sem alterações no período.</p>
+          )}
+        </div>
+      </section>
 
-      <div className="max-w-6xl">
-        {tab === 'tempo' && <BlocoTempoResposta mensagens={filteredMensagens} />}
-        {tab === 'campos' && <BlocoCamposAlterados resumo={filteredAltResumo} mensal={filteredAltMensal} />}
-        {tab === 'fechamentos' && <BlocoFechamentos leads={leadsFilteredByDate} />}
-        {tab === 'diarias' && <BlocoDiarias leads={leadsFilteredByDate} />}
-        {tab === 'faturamento' && (
-          <BlocoFaturamento
-            leads={filteredLeads}
-            dateFrom={dateRange.from}
-            dateTo={dateRange.to}
-          />
-        )}
-        {tab === 'cancelamentos' && (
-          <BlocoCancelamentos
-            leads={filteredLeads}
-            dateFrom={dateRange.from}
-            dateTo={dateRange.to}
-          />
-        )}
-      </div>
+      {/* === Seção: Vendas (fechamentos / diárias / faturamento / cancelamentos) === */}
+      <section className="space-y-4">
+        <div className="border-b pb-2">
+          <h2 className="text-xl font-semibold">Vendas</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Fechamentos pela data de fechamento. Cancelamentos pela data de cancelamento. Mesma fonte da Visão Geral.
+          </p>
+        </div>
+
+        {/* KPIs unificados */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="card-glass p-4 rounded-xl text-center">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Fechamentos</p>
+            <p className="text-3xl font-bold mt-1">{vendasStats.totalLeads.toLocaleString('pt-BR')}</p>
+          </div>
+          <div className="card-glass p-4 rounded-xl text-center">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Diárias</p>
+            <p className="text-3xl font-bold mt-1">{vendasStats.totalDiarias.toLocaleString('pt-BR')}</p>
+          </div>
+          <div className="card-glass p-4 rounded-xl text-center">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Diárias / Lead</p>
+            <p className="text-3xl font-bold mt-1">{vendasStats.diariasPorLead.toFixed(1)}</p>
+          </div>
+          <div className="card-glass p-4 rounded-xl text-center">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Faturamento</p>
+            <p className="text-xl font-bold mt-1">{formatCurrency(vendasStats.faturamento)}</p>
+          </div>
+          <div className="card-glass p-4 rounded-xl text-center border border-rose-500/30">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Cancelamentos</p>
+            <p className="text-3xl font-bold mt-1 text-rose-500">{vendasStats.totalCancelamentos.toLocaleString('pt-BR')}</p>
+          </div>
+          <div className="card-glass p-4 rounded-xl text-center border border-amber-500/30">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Churn</p>
+            <p className="text-3xl font-bold mt-1 text-amber-500">{vendasStats.churnPct.toFixed(1)}%</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-1">canc / (fech + canc)</p>
+          </div>
+        </div>
+
+        {/* 4 gráficos mensais lado a lado em 2x2 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="card-glass p-4 rounded-xl">
+            <h3 className="text-base font-semibold mb-3">Fechamentos mensais</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={fechMensal}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatNumber(v), 'Fechamentos']} />
+                <Bar dataKey="value" fill="hsl(263, 70%, 58%)" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="value" position="top" fill="hsl(240, 5%, 65%)" fontSize={11} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            {fechMensal.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-6">Sem fechamentos no período.</p>
+            )}
+          </div>
+
+          <div className="card-glass p-4 rounded-xl">
+            <h3 className="text-base font-semibold mb-3">Diárias mensais</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={diariasMensal}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatNumber(v), 'Diárias']} />
+                <Bar dataKey="value" fill="hsl(263, 70%, 58%)" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="value" position="top" fill="hsl(240, 5%, 65%)" fontSize={11} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            {diariasMensal.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-6">Sem diárias no período.</p>
+            )}
+          </div>
+
+          <div className="card-glass p-4 rounded-xl">
+            <h3 className="text-base font-semibold mb-3">Valor vendido mensal</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={faturamentoMensal}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatCurrency(v), 'Faturamento']} />
+                <Bar dataKey="value" fill="hsl(142, 60%, 45%)" radius={[4, 4, 0, 0]}>
+                  <LabelList
+                    dataKey="value"
+                    position="top"
+                    formatter={(v: any) => `R$ ${(Number(v) / 1000).toFixed(0)}k`}
+                    fill="hsl(240, 5%, 65%)"
+                    fontSize={10}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            {faturamentoMensal.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-6">Sem faturamento no período.</p>
+            )}
+          </div>
+
+          <div className="card-glass p-4 rounded-xl">
+            <h3 className="text-base font-semibold mb-3">Cancelamentos mensais</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={cancelMensal}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatNumber(v), 'Cancelamentos']} />
+                <Bar dataKey="value" fill="hsl(0, 72%, 51%)" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="value" position="top" fill="hsl(240, 5%, 65%)" fontSize={11} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            {cancelMensal.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-6">Sem cancelamentos no período.</p>
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
