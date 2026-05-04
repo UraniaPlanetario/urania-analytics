@@ -4,14 +4,15 @@ import type { LeadAtual } from '@/areas/comercial/auditoria-funil-vendas/hooks/u
 
 /** Vendedor mapeado pro user logado (texto exato do custom field
  *  "Vendedor/Consultor" no Kommo). NULL se admin não preencheu o campo
- *  `users.vendedor_consultor` no perfil. */
-export function useMeuVendedor() {
+ *  `users.vendedor_consultor` no perfil.
+ *  Override: admins podem passar p_override pra simular outro vendedor. */
+export function useMeuVendedor(override?: string | null) {
   return useQuery<string | null>({
-    queryKey: ['meu_vendedor_consultor'],
+    queryKey: ['meu_vendedor_consultor', override ?? null],
     queryFn: async () => {
       const { data, error } = await supabase
         .schema('gold')
-        .rpc('get_meu_vendedor_consultor');
+        .rpc('get_meu_vendedor_consultor', { p_override: override ?? null });
       if (error) throw error;
       return (data as string | null) ?? null;
     },
@@ -20,14 +21,15 @@ export function useMeuVendedor() {
 }
 
 /** kommo_user_id do user logado — usado pra filtrar a Auditoria por
- *  responsible_user_id do lead. NULL se admin/sync não preencheu. */
-export function useMeuKommoUserId() {
+ *  responsible_user_id do lead. NULL se admin/sync não preencheu.
+ *  Override admin: simula outro vendedor. */
+export function useMeuKommoUserId(override?: number | null) {
   return useQuery<number | null>({
-    queryKey: ['meu_kommo_user_id'],
+    queryKey: ['meu_kommo_user_id', override ?? null],
     queryFn: async () => {
       const { data, error } = await supabase
         .schema('gold')
-        .rpc('get_meu_kommo_user_id');
+        .rpc('get_meu_kommo_user_id', { p_override: override ?? null });
       if (error) throw error;
       return (data as number | null) ?? null;
     },
@@ -52,15 +54,14 @@ export interface MeuLeadFechado {
   lead_created_at: string | null;
 }
 
-/** Leads do vendedor logado em gold.funil_whats_leads_atual (pipeline Vendas
- *  WhatsApp). Cruza por lead.responsible_user_id = users.kommo_user_id. */
-export function useMeusLeadsFunil() {
+/** Leads do vendedor logado em gold.funil_whats_leads_atual. Override admin. */
+export function useMeusLeadsFunil(kommoUserIdOverride?: number | null) {
   return useQuery<LeadAtual[]>({
-    queryKey: ['meus_leads_funil'],
+    queryKey: ['meus_leads_funil', kommoUserIdOverride ?? null],
     queryFn: async () => {
       const { data, error } = await supabase
         .schema('gold')
-        .rpc('get_meus_leads_funil');
+        .rpc('get_meus_leads_funil', { p_kommo_user_id_override: kommoUserIdOverride ?? null });
       if (error) throw error;
       return (data ?? []) as LeadAtual[];
     },
@@ -69,17 +70,38 @@ export function useMeusLeadsFunil() {
 }
 
 /** Leads fechados (gold.leads_closed) do vendedor logado, com pipeline/status
- *  atuais (do bronze). Filtragem feita no banco via SECURITY DEFINER. */
-export function useMeusLeadsFechados() {
+ *  atuais (do bronze). Override admin. */
+export function useMeusLeadsFechados(vendedorOverride?: string | null) {
   return useQuery<MeuLeadFechado[]>({
-    queryKey: ['meus_leads_fechados'],
+    queryKey: ['meus_leads_fechados', vendedorOverride ?? null],
     queryFn: async () => {
       const { data, error } = await supabase
         .schema('gold')
-        .rpc('get_meus_leads_fechados');
+        .rpc('get_meus_leads_fechados', { p_vendedor_override: vendedorOverride ?? null });
       if (error) throw error;
       return (data ?? []) as MeuLeadFechado[];
     },
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export interface VendedorImpersonar {
+  vendedor: string;
+  kommo_user_id: number | null;
+}
+
+/** Lista de vendedores ativos pra admin escolher na "Visualizar como". */
+export function useListaVendedoresImpersonar(enabled: boolean) {
+  return useQuery<VendedorImpersonar[]>({
+    queryKey: ['lista_vendedores_impersonar'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .schema('gold')
+        .rpc('lista_vendedores_pra_impersonar');
+      if (error) throw error;
+      return (data ?? []) as VendedorImpersonar[];
+    },
+    staleTime: 60 * 60 * 1000,
   });
 }

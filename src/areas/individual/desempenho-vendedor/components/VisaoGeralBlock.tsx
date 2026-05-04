@@ -5,6 +5,8 @@ import { useMeusLeadsFechados, type MeuLeadFechado } from '../hooks/useMeuVended
 
 interface Props {
   vendedor: string;
+  /** Quando admin tá impersonando, passa pro hook fetchar pelo nome alternativo. */
+  vendedorOverride?: string;
 }
 
 type DateRef = 'fechamento' | 'criacao';
@@ -54,8 +56,8 @@ function dateInRange(ref: string | null, range: { from: Date | null; to: Date | 
   return true;
 }
 
-export function VisaoGeralBlock({ vendedor: _v }: Props) {
-  const { data: leads = [], isLoading } = useMeusLeadsFechados();
+export function VisaoGeralBlock({ vendedor: _v, vendedorOverride }: Props) {
+  const { data: leads = [], isLoading } = useMeusLeadsFechados(vendedorOverride);
   const [dateRef, setDateRef] = useState<DateRef>('fechamento');
   // Default: ano atual até hoje
   const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({

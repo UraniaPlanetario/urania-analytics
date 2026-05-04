@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Loader2, AlertCircle, TrendingUp, Activity, BarChart3 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Loader2, AlertCircle, TrendingUp, Activity, BarChart3, Eye, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useMeuVendedor, useMeuKommoUserId } from '../hooks/useMeuVendedor';
+import {
+  useMeuVendedor, useMeuKommoUserId, useListaVendedoresImpersonar,
+} from '../hooks/useMeuVendedor';
 import { VisaoGeralBlock } from '../components/VisaoGeralBlock';
 import { AuditoriaBlock } from '../components/AuditoriaBlock';
 import { DesempenhoBlock } from '../components/DesempenhoBlock';
@@ -15,10 +17,22 @@ const TABS: { id: TabId; label: string; icon: any }[] = [
 ];
 
 export default function MeuDesempenhoVendedorDashboard() {
-  const { user } = useAuth();
-  const { data: vendedor, isLoading: vLoading } = useMeuVendedor();
-  const { data: kommoUserId, isLoading: kLoading } = useMeuKommoUserId();
+  const { user, isGlobalAdmin } = useAuth();
   const [tab, setTab] = useState<TabId>('visao');
+
+  // Modo "Visualizar como" (admin only) — quando ativo, override é passado
+  // pras 4 RPCs que aceitam parâmetro. Backend valida que o caller é admin
+  // antes de respeitar o override.
+  const [impersonado, setImpersonado] = useState<{ vendedor: string; kommoUserId: number | null } | null>(null);
+  const { data: listaImpersonar = [] } = useListaVendedoresImpersonar(isGlobalAdmin);
+
+  const { data: vendedor, isLoading: vLoading } = useMeuVendedor(impersonado?.vendedor);
+  const { data: kommoUserId, isLoading: kLoading } = useMeuKommoUserId(impersonado?.kommoUserId);
+
+  const opcoesImpersonar = useMemo(
+    () => [...listaImpersonar].sort((a, b) => a.vendedor.localeCompare(b.vendedor)),
+    [listaImpersonar],
+  );
 
   if (vLoading || kLoading) {
     return (
@@ -28,7 +42,7 @@ export default function MeuDesempenhoVendedorDashboard() {
     );
   }
 
-  // Sem vínculo: mostra mensagem amigável
+  // Sem vínculo (e não é admin impersonando): mostra mensagem amigável
   if (!vendedor) {
     return (
       <div className="space-y-5">
@@ -48,6 +62,13 @@ export default function MeuDesempenhoVendedorDashboard() {
             </p>
           </div>
         </div>
+        {isGlobalAdmin && (
+          <ImpersonarSelector
+            opcoes={opcoesImpersonar}
+            atual={impersonado}
+            onChange={setImpersonado}
+          />
+        )}
       </div>
     );
   }
@@ -57,9 +78,18 @@ export default function MeuDesempenhoVendedorDashboard() {
       <div>
         <h1 className="text-2xl font-bold">Meu Desempenho</h1>
         <p className="text-sm text-muted-foreground">
-          {user?.full_name ? `Olá, ${user.full_name}.` : ''} Vendedor: <strong>{vendedor}</strong>
+          {user?.full_name && !impersonado ? `Olá, ${user.full_name}.` : ''} Vendedor: <strong>{vendedor}</strong>
+          {impersonado && <span className="ml-2 text-amber-500 italic">(visualizando como)</span>}
         </p>
       </div>
+
+      {isGlobalAdmin && (
+        <ImpersonarSelector
+          opcoes={opcoesImpersonar}
+          atual={impersonado}
+          onChange={setImpersonado}
+        />
+      )}
 
       <div className="border-b flex">
         {TABS.map(({ id, label, icon: Icon }) => (
@@ -77,18 +107,61 @@ export default function MeuDesempenhoVendedorDashboard() {
         ))}
       </div>
 
-      {tab === 'visao' && <VisaoGeralBlock vendedor={vendedor} />}
+      {tab === 'visao' && <VisaoGeralBlock vendedor={vendedor} vendedorOverride={impersonado?.vendedor} />}
       {tab === 'auditoria' && (
         kommoUserId
-          ? <AuditoriaBlock kommoUserId={kommoUserId} />
+          ? <AuditoriaBlock kommoUserId={kommoUserId} kommoUserIdOverride={impersonado?.kommoUserId ?? null} />
           : <div className="card-glass p-8 rounded-xl">
               <p className="text-sm text-muted-foreground">
-                Pra ver a Auditoria, seu kommo_user_id precisa estar mapeado também.
-                Peça pro admin rodar o sync de usuários do Kommo em /admin/usuarios.
+                {impersonado
+                  ? 'Esse vendedor não tem kommo_user_id sincronizado em bronze.kommo_users (provavelmente inativo no Kommo).'
+                  : 'Pra ver a Auditoria, seu kommo_user_id precisa estar mapeado também. Peça pro admin rodar o sync de usuários do Kommo em /admin/usuarios.'}
               </p>
             </div>
       )}
       {tab === 'desempenho' && <DesempenhoBlock vendedor={vendedor} />}
+    </div>
+  );
+}
+
+interface ImpersonarSelectorProps {
+  opcoes: { vendedor: string; kommo_user_id: number | null }[];
+  atual: { vendedor: string; kommoUserId: number | null } | null;
+  onChange: (next: { vendedor: string; kommoUserId: number | null } | null) => void;
+}
+
+function ImpersonarSelector({ opcoes, atual, onChange }: ImpersonarSelectorProps) {
+  return (
+    <div className="card-glass p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Eye size={14} className="text-amber-500" />
+        <span className="text-xs text-amber-500 font-medium uppercase tracking-wider">Modo admin · Visualizar como vendedor</span>
+        <select
+          value={atual?.vendedor ?? ''}
+          onChange={(e) => {
+            const sel = opcoes.find((o) => o.vendedor === e.target.value);
+            if (!sel) onChange(null);
+            else onChange({ vendedor: sel.vendedor, kommoUserId: sel.kommo_user_id });
+          }}
+          className="px-2 py-1 rounded bg-secondary border border-border text-xs text-foreground"
+        >
+          <option value="">— sair do modo (ver minha conta) —</option>
+          {opcoes.map((o) => (
+            <option key={o.vendedor} value={o.vendedor}>
+              {o.vendedor}
+              {o.kommo_user_id == null ? ' (sem kommo_user_id)' : ''}
+            </option>
+          ))}
+        </select>
+        {atual && (
+          <button
+            onClick={() => onChange(null)}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+          >
+            <X size={12} /> sair
+          </button>
+        )}
+      </div>
     </div>
   );
 }

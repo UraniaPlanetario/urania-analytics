@@ -11,6 +11,8 @@ import type { LeadAtual } from '@/areas/comercial/auditoria-funil-vendas/hooks/u
 
 interface Props {
   kommoUserId: number;
+  /** Quando admin tá impersonando, passa pro hook fetchar pelo id alternativo. */
+  kommoUserIdOverride?: number | null;
 }
 
 const TOOLTIP_STYLE = {
@@ -37,8 +39,8 @@ function fmtDateTime(iso: string | null | undefined): string {
   });
 }
 
-export function AuditoriaBlock({ kommoUserId: _k }: Props) {
-  const { data: leads = [], isLoading } = useMeusLeadsFunil();
+export function AuditoriaBlock({ kommoUserId: _k, kommoUserIdOverride }: Props) {
+  const { data: leads = [], isLoading } = useMeusLeadsFunil(kommoUserIdOverride);
 
   // Só leads ativos (exclui Closed-won/lost)
   const ativos = useMemo<LeadAtual[]>(() => {
